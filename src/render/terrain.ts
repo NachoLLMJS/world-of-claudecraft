@@ -4,6 +4,8 @@ import {
 } from '../sim/data';
 import type { BiomeId } from '../sim/types';
 import { roadDistance, terrainHeight, WATER_LEVEL, zoneBiomeAt } from '../sim/world';
+import { loadTexture } from './assets/loader';
+import { registerPreload } from './assets/preload';
 import { GFX } from './gfx';
 import { groundDetailTexture, groundSplatMaps, macroNoiseTexture } from './textures';
 
@@ -23,6 +25,49 @@ import { groundDetailTexture, groundSplatMaps, macroNoiseTexture } from './textu
 const CHUNK_SIZE = 60;
 const SKIRT_DROP = 0.3;
 const SLOPE_EPS = 1.5; // matches the legacy color pass so tints don't shift
+
+// ---------------------------------------------------------------------------
+// Real PBR splat layers (ambientCG 1K, shipped under public/textures/terrain).
+// Kicked off at module import and registered with the preload gate, so by the
+// time buildTerrain runs the resolved textures are available synchronously.
+// ---------------------------------------------------------------------------
+
+const TERRAIN_TEX: Record<string, THREE.Texture> = {};
+const ALBEDO_ANISOTROPY = 8;
+const NORMAL_ANISOTROPY = 4;
+
+function kickTerrainTex(key: string, file: string, srgb: boolean): void {
+  registerPreload(loadTexture(`/textures/terrain/${file}`, { srgb, repeat: true }).then((tex) => {
+    tex.anisotropy = srgb ? ALBEDO_ANISOTROPY : NORMAL_ANISOTROPY;
+    TERRAIN_TEX[key] = tex;
+    return tex;
+  }));
+}
+
+// ~15MB of JPEGs — skip when the URL already forces the Lambert tier (an
+// auto-detected low tier still fetches them; the URL guess can't know yet)
+if (GFX.terrainSplat) {
+  kickTerrainTex('grassC', 'Grass001_Color.jpg', true);
+  kickTerrainTex('grassN', 'Grass001_NormalGL.jpg', false);
+  kickTerrainTex('dirtC', 'Ground048_Color.jpg', true);
+  kickTerrainTex('dirtN', 'Ground048_NormalGL.jpg', false);
+  kickTerrainTex('rockC', 'Rock051_Color.jpg', true);
+  kickTerrainTex('rockN', 'Rock051_NormalGL.jpg', false);
+  kickTerrainTex('sandC', 'Ground080_Color.jpg', true);
+  kickTerrainTex('sandN', 'Ground080_NormalGL.jpg', false);
+  kickTerrainTex('mudC', 'Ground071_Color.jpg', true); // marsh wet mud (dirt variant)
+  kickTerrainTex('snowC', 'Snow010A_Color.jpg', true);
+}
+
+// Per-layer constant roughness, eyeballed from the packs' roughness-map means
+// (saves four samplers vs. real roughness maps; terrain is never glossy
+// enough for the difference to read at gameplay camera distance).
+const ROUGH_GRASS = 0.8;
+const ROUGH_DIRT = 0.9;
+const ROUGH_ROCK = 0.75;
+const ROUGH_SAND = 0.85;
+const ROUGH_MUD = 0.62; // wet sheen
+const ROUGH_SNOW = 0.72;
 
 // vertex spacing by distance from the nearest hub centre
 const LOD_BANDS = {
@@ -63,6 +108,7 @@ interface VertexSample {
   normal: [number, number, number];
   color: [number, number, number];
   splat: [number, number, number, number]; // grass, dirt, rock, sand
+  extra: [number, number]; // mud (marsh dirt variant), snow cover
 }
 
 // Shared scratch colors for the palette blend (hot loop, avoid allocation).
@@ -98,6 +144,20 @@ function paletteAt(z: number): void {
     dirtC.lerp(zonePalettes[i + 1].dirt, tt);
     sandC.lerp(zonePalettes[i + 1].sand, tt);
   }
+}
+
+// How "marsh" a given z is — mirrors the palette/heightfield blend windows so
+// the mud texture fades in exactly where the marsh palette does.
+function marshWeightAt(z: number): number {
+  let w = ZONES[0].biome === 'marsh' ? 1 : 0;
+  for (let i = 0; i + 1 < ZONES.length; i++) {
+    const b = ZONES[i].zMax;
+    const t = clamp01((z - (b - 30)) / 65);
+    const tt = t * t * (3 - 2 * t);
+    if (tt <= 0) break;
+    w += ((ZONES[i + 1].biome === 'marsh' ? 1 : 0) - w) * tt;
+  }
+  return w;
 }
 
 // blend the splat weight vector toward a single layer
@@ -165,9 +225,11 @@ function sampleVertex(x: number, z: number, seed: number): VertexSample {
     lerpSplat(w, 2, t);
   }
   // high ground (ridges, peaks) goes rocky then snowy
+  let snow = 0;
   if (h > 22) {
     cTmp.lerp(rockC, clamp01((h - 22) / 10) * 0.7);
-    cTmp.lerp(snowCapC, clamp01((h - 34) / 14) * 0.85);
+    snow = clamp01((h - 34) / 14) * 0.85;
+    cTmp.lerp(snowCapC, snow);
     lerpSplat(w, 2, clamp01((h - 22) / 10) * 0.8);
   }
   // the rim wall reads as distant sunlit peaks, not a black cliff
@@ -179,10 +241,17 @@ function sampleVertex(x: number, z: number, seed: number): VertexSample {
   const rim = clamp01(edge / 26);
   if (rim > 0) {
     cTmp.lerp(hazyPeakC, rim * 0.9);
-    cTmp.lerp(snowCapC, clamp01((h - 26) / 16) * rim * 0.8);
+    const rimSnow = clamp01((h - 26) / 16) * rim * 0.8;
+    cTmp.lerp(snowCapC, rimSnow);
+    snow = Math.max(snow, rimSnow);
     lerpSplat(w, 2, rim * 0.85);
   }
-  return { height: h, slope, normal, color: [cTmp.r, cTmp.g, cTmp.b], splat: w };
+  // mud rides the dirt layer wherever the marsh palette is active
+  const mud = marshWeightAt(z);
+  return {
+    height: h, slope, normal, color: [cTmp.r, cTmp.g, cTmp.b], splat: w,
+    extra: [mud, snow],
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -204,6 +273,7 @@ function buildChunkGeometry(x0: number, z0: number, size: number, spacing: numbe
   const colors = new Float32Array(count * 3);
   const uvs = new Float32Array(count * 2);
   const splats = withSplat ? new Float32Array(count * 4) : null;
+  const extras = withSplat ? new Float32Array(count * 2) : null;
 
   const worldDepth = WORLD_MAX_Z - WORLD_MIN_Z;
   const sampleCache = new Map<number, VertexSample>();
@@ -240,6 +310,10 @@ function buildChunkGeometry(x0: number, z0: number, size: number, spacing: numbe
         splats[vi * 4 + 2] = s.splat[2];
         splats[vi * 4 + 3] = s.splat[3];
       }
+      if (extras) {
+        extras[vi * 2] = s.extra[0];
+        extras[vi * 2 + 1] = s.extra[1];
+      }
     }
   }
 
@@ -263,6 +337,7 @@ function buildChunkGeometry(x0: number, z0: number, size: number, spacing: numbe
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
   if (splats) geo.setAttribute('aSplat', new THREE.BufferAttribute(splats, 4));
+  if (extras) geo.setAttribute('aExtra', new THREE.BufferAttribute(extras, 2));
   geo.setIndex(new THREE.BufferAttribute(indices, 1));
   geo.computeBoundingBox();
   geo.computeBoundingSphere();
@@ -319,8 +394,13 @@ function terrainNormalTexture(seed: number): THREE.DataTexture {
 // ---------------------------------------------------------------------------
 
 function buildSplatMaterial(seed: number): THREE.MeshStandardMaterial {
-  const splat = groundSplatMaps();
+  // Legacy canvas splats are still generated (result unused): textures.ts
+  // shares one LCG across all generators, so dropping this call would shift
+  // the look of every texture generated after it (foliage, props, ...).
+  groundSplatMaps();
   const macro = macroNoiseTexture();
+  const t = TERRAIN_TEX;
+  if (!t.grassC) throw new Error('terrain splat textures not preloaded (assetsReady must resolve before buildTerrain)');
   const mat = new THREE.MeshStandardMaterial({
     vertexColors: true,
     roughness: 1.0,
@@ -330,62 +410,101 @@ function buildSplatMaterial(seed: number): THREE.MeshStandardMaterial {
   });
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, {
-      uGrass: { value: splat.grass.map },
-      uDirt: { value: splat.dirt.map },
-      uRock: { value: splat.rock.map },
-      uSand: { value: splat.sand.map },
-      uRockN: { value: splat.rock.normalMap },
+      uGrass: { value: t.grassC },
+      uGrassN: { value: t.grassN },
+      uDirt: { value: t.dirtC },
+      uDirtN: { value: t.dirtN },
+      uRock: { value: t.rockC },
+      uRockN: { value: t.rockN },
+      uSand: { value: t.sandC },
+      uSandN: { value: t.sandN },
+      uMud: { value: t.mudC },
+      uSnow: { value: t.snowC },
       uMacro: { value: macro },
     });
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', `#include <common>
         attribute vec4 aSplat;
+        attribute vec2 aExtra;
         varying vec4 vSplat;
+        varying vec2 vExtra;
         varying vec3 vWPos;
         varying vec3 vWNorm;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         vSplat = aSplat;
+        vExtra = aExtra;
         vWPos = (modelMatrix * vec4(position, 1.0)).xyz;
         vWNorm = objectNormal; // terrain mesh is untransformed: object == world`);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
         varying vec4 vSplat;
+        varying vec2 vExtra;
         varying vec3 vWPos;
         varying vec3 vWNorm;
-        uniform sampler2D uGrass, uDirt, uRock, uSand, uRockN, uMacro;`)
+        uniform sampler2D uGrass, uGrassN, uDirt, uDirtN, uRock, uRockN, uSand, uSandN, uMud, uSnow, uMacro;`)
       .replace('#include <map_fragment>', `
         vec2 tuv = vWPos.xz * 0.22;
-        // grass blends three scales so it never reads as a flat wash or a tile
-        vec3 grassAlb = mix(texture2D(uGrass, tuv).rgb, texture2D(uGrass, tuv * 0.27).rgb, 0.45);
-        grassAlb = mix(grassAlb, texture2D(uGrass, tuv * 0.53).rgb, 0.3);
+        // grass blends two scales so the 1K photo source never reads as tile
+        vec3 grassAlb = mix(texture2D(uGrass, tuv).rgb, texture2D(uGrass, tuv * 0.31).rgb, 0.42);
+        // marsh swaps packed dirt for wet mud (roads, hub discs included)
+        vec3 dirtAlb = mix(texture2D(uDirt, tuv * 0.8).rgb, texture2D(uMud, tuv * 0.8).rgb, vExtra.x);
         // rock: top-down projection smears into vertical streaks on cliffs,
         // so steep faces blend toward wall-planar (world XY/ZY) samples
         vec3 an = abs(normalize(vWNorm));
         float wallW = clamp(1.0 - an.y * 1.45, 0.0, 1.0);
+        float axisW = an.x / max(1e-4, an.x + an.z);
         vec3 rockFlat = texture2D(uRock, tuv * 0.6).rgb;
         vec3 rockWall = mix(
           texture2D(uRock, vWPos.xy * 0.132).rgb,
           texture2D(uRock, vWPos.zy * 0.132).rgb,
-          an.x / max(1e-4, an.x + an.z));
+          axisW);
         vec3 rockAlb = mix(rockFlat, rockWall, wallW);
         vec3 alb = grassAlb * vSplat.x
-                 + texture2D(uDirt, tuv * 0.8).rgb * vSplat.y
+                 + dirtAlb * vSplat.y
                  + rockAlb * vSplat.z
                  + texture2D(uSand, tuv).rgb * vSplat.w;
-        // gentle macro swing — +/-26% read as blotchy stains on open fields;
-        // the third grass scale above recovers the tiling break-up instead
-        float macro = mix(0.89, 1.11, texture2D(uMacro, vWPos.xz * 0.012).r);
+        // snow cover on the peaks/rim, by baked per-vertex weight
+        alb = mix(alb, texture2D(uSnow, tuv * 0.7).rgb, vExtra.y);
+        // gentle macro brightness swing breaks distant tiling
+        float macro = mix(0.92, 1.08, texture2D(uMacro, vWPos.xz * 0.012).r);
         // very-low-frequency hue drift (~100u wavelength) keeps distant
         // hills from flattening into one uniform lawn green
         float macro2 = texture2D(uMacro, vWPos.xz * 0.0045 + 0.37).r;
-        alb = mix(alb, alb * vec3(1.09, 1.04, 0.8), (macro2 - 0.5) * 0.6 * vSplat.x);
-        // splat albedo is authored mid-gray; vertex color carries the hue
-        diffuseColor.rgb *= alb * macro * 2.0;`)
+        alb = mix(alb, alb * vec3(1.07, 1.03, 0.86), (macro2 - 0.5) * 0.5 * vSplat.x);
+        // real albedo carries the hue now; vertex color only modulates gently
+        // so the biome painting (roads, hub discs, snowline) still reads.
+        // (vColor was authored as a full sRGB ground color, so re-centre it
+        // around 1.0 before using it as a multiplier.)
+        vec3 vtint = clamp(vColor.rgb * 2.0, 0.0, 2.0);
+        diffuseColor.rgb *= alb * mix(vec3(1.0), vtint, 0.35) * macro;`)
+      .replace('#include <color_fragment>', `
+        // vertex color already folded into the splat albedo above (gently);
+        // the stock full multiply would re-tint the real textures to mush`)
+      .replace('#include <roughnessmap_fragment>', `
+        float roughnessFactor = roughness * mix(
+          dot(vSplat, vec4(${ROUGH_GRASS}, mix(${ROUGH_DIRT}, ${ROUGH_MUD}, vExtra.x), ${ROUGH_ROCK}, ${ROUGH_SAND})),
+          ${ROUGH_SNOW}, vExtra.y);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
-        // rock-only detail relief, weighted by the rock splat layer; faded on
-        // near-vertical faces where the top-down projection smears
-        vec3 rockN = texture2D(uRockN, tuv * 0.6).xyz * 2.0 - 1.0;
-        normal = normalize(normal + tbn * vec3(rockN.xy * vSplat.z * 0.85 * (1.0 - wallW), 0.0));`);
+        // per-layer detail normals (GL-convention), weighted by splat
+        vec3 gN = texture2D(uGrassN, tuv).xyz * 2.0 - 1.0;
+        vec3 dN = texture2D(uDirtN, tuv * 0.8).xyz * 2.0 - 1.0;
+        vec3 rN = texture2D(uRockN, tuv * 0.6).xyz * 2.0 - 1.0;
+        vec3 sN = texture2D(uSandN, tuv).xyz * 2.0 - 1.0;
+        vec2 detN = gN.xy * vSplat.x * 0.65
+                  + dN.xy * vSplat.y * 0.8
+                  + rN.xy * vSplat.z * 0.9 * (1.0 - wallW)
+                  + sN.xy * vSplat.w * 0.55;
+        detN *= 1.0 - vExtra.y * 0.7; // snow softens the relief beneath it
+        normal = normalize(normal + tbn * vec3(detN, 0.0));
+        // cliffs: wall-projected rock normal so steep faces get real relief
+        // (approximate world-space tangent frames per projection plane; the
+        // handedness flip on back faces is invisible on noisy rock)
+        if (vSplat.z * wallW > 0.01) {
+          vec3 rNx = texture2D(uRockN, vWPos.zy * 0.132).xyz * 2.0 - 1.0; // +-x faces
+          vec3 rNz = texture2D(uRockN, vWPos.xy * 0.132).xyz * 2.0 - 1.0; // +-z faces
+          vec3 wallPerturb = mix(vec3(rNz.x, rNz.y, 0.0), vec3(0.0, rNx.y, rNx.x), axisW);
+          normal = normalize(normal + mat3(viewMatrix) * wallPerturb * (vSplat.z * wallW * 0.8));
+        }`);
   };
   return mat;
 }

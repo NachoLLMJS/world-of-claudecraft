@@ -1,19 +1,90 @@
 import * as THREE from 'three';
+import { loadTexture } from './assets/loader';
+import { registerPreload } from './assets/preload';
 import { GFX } from './gfx';
 
 // Spell & ambience particle system. One pooled THREE.Points cloud drawn with
 // additive blending; projectiles are lightweight emitters that home on their
-// target and burst on arrival. No textures — soft discs shaded in GLSL.
+// target and burst on arrival. Particles sample a 4x4 atlas of Kenney
+// particle-pack sprites (black-background, additive-ready, CC0) — flames,
+// sparks, magic wisps, smoke — built once at startup from the preloaded PNGs.
 //
 // On the composer tiers, colors are pushed past 1.0 (the HDR HalfFloat target
 // preserves them) so projectile cores, novas and heal pillars bloom; the low
-// tier keeps plain colors and the legacy look.
+// tier keeps plain colors (same sprites, no HDR boost).
 
 const CAPACITY = 4096;
 
 // HDR multipliers (graphics-plan step 9); 1.0 on the no-composer path
 function hdr(k: number): number {
   return GFX.composer ? k : 1;
+}
+
+// ---------------------------------------------------------------------------
+// Sprite atlas: 16 cherry-picked Kenney sprites in a 4x4 grid. Order defines
+// the cell index used by the shader — append only.
+// ---------------------------------------------------------------------------
+
+const ATLAS_GRID = 4;
+const ATLAS_CELL = 256;
+
+const SPRITE_FILES = [
+  'light_01', 'light_02', 'flare_01', 'spark_04',
+  'spark_06', 'star_07', 'magic_01', 'magic_04',
+  'twirl_01', 'flame_03', 'fire_01', 'smoke_05',
+  'trace_05', 'slash_02', 'dirt_02', 'circle_05',
+] as const;
+
+// Named cell indices (keep in sync with SPRITE_FILES order)
+const SPR = {
+  glowSoft: 0, glowCore: 1, flash: 2, sparkle: 3,
+  sparkBurst: 4, star: 5, magicWisp: 6, magicRune: 7,
+  twirl: 8, flame: 9, firePuff: 10, smoke: 11,
+  trace: 12, slash: 13, debris: 14, ring: 15,
+} as const;
+
+const spriteImages: (TexImageSource | null)[] = SPRITE_FILES.map(() => null);
+for (let i = 0; i < SPRITE_FILES.length; i++) {
+  registerPreload(loadTexture(`/vfx/${SPRITE_FILES[i]}.png`, { srgb: true }).then((tex) => {
+    spriteImages[i] = tex.image as TexImageSource;
+    return tex;
+  }));
+}
+
+// Compose the atlas once. Any cell whose PNG is unavailable (e.g. unit tests
+// that construct Vfx without the preload gate) falls back to a soft painted
+// disc so the system always renders something sane.
+function buildAtlasTexture(): THREE.CanvasTexture {
+  const size = ATLAS_GRID * ATLAS_CELL;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, size, size);
+  for (let i = 0; i < SPRITE_FILES.length; i++) {
+    const x = (i % ATLAS_GRID) * ATLAS_CELL;
+    const y = Math.floor(i / ATLAS_GRID) * ATLAS_CELL;
+    const img = spriteImages[i];
+    if (img) {
+      ctx.drawImage(img as CanvasImageSource, x, y, ATLAS_CELL, ATLAS_CELL);
+    } else {
+      const g = ctx.createRadialGradient(
+        x + ATLAS_CELL / 2, y + ATLAS_CELL / 2, 2,
+        x + ATLAS_CELL / 2, y + ATLAS_CELL / 2, ATLAS_CELL / 2,
+      );
+      g.addColorStop(0, 'rgba(255,255,255,1)');
+      g.addColorStop(0.4, 'rgba(255,255,255,0.5)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(x, y, ATLAS_CELL, ATLAS_CELL);
+    }
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  return tex;
 }
 
 export const SCHOOL_COLORS: Record<string, number> = {
@@ -36,6 +107,15 @@ interface Projectile {
   trailColor: THREE.Color; // sparkling trail (x1.4)
   speed: number;
   ttl: number;
+  coreSprite: number;
+  trailSprite: number;
+}
+
+// fire reads as flame tongues; everything else as sparkling magic
+function projectileSprites(school: string): { core: number; trail: number } {
+  return school === 'fire'
+    ? { core: SPR.firePuff, trail: SPR.flame }
+    : { core: SPR.glowCore, trail: SPR.sparkle };
 }
 
 export type EntityAnchor = (id: number, heightFrac: number) => THREE.Vector3 | null;
@@ -50,6 +130,8 @@ export class Vfx {
   private maxLife: Float32Array;
   private grav: Float32Array;
   private alphaAttr: Float32Array;
+  private spriteAttr: Float32Array;
+  private rotAttr: Float32Array;
   private head = 0;
   private projectiles: Projectile[] = [];
   private tmpColor = new THREE.Color();
@@ -63,12 +145,16 @@ export class Vfx {
     this.maxLife = new Float32Array(CAPACITY);
     this.grav = new Float32Array(CAPACITY);
     this.alphaAttr = new Float32Array(CAPACITY);
+    this.spriteAttr = new Float32Array(CAPACITY);
+    this.rotAttr = new Float32Array(CAPACITY);
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
     geo.setAttribute('aColor', new THREE.BufferAttribute(this.col, 3));
     geo.setAttribute('aSize', new THREE.BufferAttribute(this.size, 1));
     geo.setAttribute('aAlpha', new THREE.BufferAttribute(this.alphaAttr, 1));
+    geo.setAttribute('aSprite', new THREE.BufferAttribute(this.spriteAttr, 1));
+    geo.setAttribute('aRot', new THREE.BufferAttribute(this.rotAttr, 1));
     // huge static bounding sphere: particles fly everywhere, skip recompute
     geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(450, 0, 0), 2400);
 
@@ -76,31 +162,51 @@ export class Vfx {
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
-      uniforms: { uScale: { value: 600 } },
+      uniforms: {
+        uScale: { value: 600 },
+        uAtlas: { value: buildAtlasTexture() },
+      },
       vertexShader: `
         attribute vec3 aColor;
         attribute float aSize;
         attribute float aAlpha;
+        attribute float aSprite;
+        attribute float aRot;
         varying vec3 vColor;
         varying float vAlpha;
+        varying float vSprite;
+        varying float vRot;
         uniform float uScale;
         void main() {
           vColor = aColor;
           vAlpha = aAlpha;
+          vSprite = aSprite;
+          vRot = aRot;
           vec4 mv = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = clamp(aSize * uScale / max(1.0, -mv.z), 0.0, 90.0);
+          gl_PointSize = clamp(aSize * uScale / max(1.0, -mv.z), 0.0, 110.0);
           gl_Position = projectionMatrix * mv;
         }
       `,
       fragmentShader: `
+        uniform sampler2D uAtlas;
         varying vec3 vColor;
         varying float vAlpha;
+        varying float vSprite;
+        varying float vRot;
         void main() {
-          vec2 d = gl_PointCoord - vec2(0.5);
-          float r = length(d) * 2.0;
-          float fall = smoothstep(1.0, 0.15, r);
-          if (fall * vAlpha < 0.012) discard;
-          gl_FragColor = vec4(vColor, fall * vAlpha);
+          // rotate the point coord around its centre, clamped inside the cell
+          vec2 pc = gl_PointCoord - 0.5;
+          float cs = cos(vRot), sn = sin(vRot);
+          pc = vec2(pc.x * cs - pc.y * sn, pc.x * sn + pc.y * cs);
+          pc = clamp(pc + 0.5, 0.01, 0.99);
+          float idx = floor(vSprite + 0.5);
+          vec2 cell = vec2(mod(idx, ${ATLAS_GRID}.0), floor(idx / ${ATLAS_GRID}.0));
+          vec2 uv = (cell + pc) / ${ATLAS_GRID}.0;
+          uv.y = 1.0 - uv.y; // canvas row 0 is the visual top
+          vec3 tex = texture2D(uAtlas, uv).rgb;
+          float lum = max(tex.r, max(tex.g, tex.b));
+          if (lum * vAlpha < 0.012) discard;
+          gl_FragColor = vec4(vColor * tex, vAlpha);
         }
       `,
     });
@@ -119,6 +225,7 @@ export class Vfx {
     x: number, y: number, z: number,
     vx: number, vy: number, vz: number,
     color: THREE.Color | number, size: number, lifetime: number, gravity = 0,
+    sprite: number = SPR.glowSoft, rot: number = Math.random() * Math.PI * 2,
   ): void {
     const i = this.head;
     this.head = (this.head + 1) % CAPACITY;
@@ -131,6 +238,8 @@ export class Vfx {
     this.maxLife[i] = lifetime;
     this.grav[i] = gravity;
     this.alphaAttr[i] = 1;
+    this.spriteAttr[i] = sprite;
+    this.rotAttr[i] = rot;
   }
 
   // ---------------------------------------------------------------------
@@ -141,6 +250,7 @@ export class Vfx {
     const from = this.anchor(sourceId, 0.62);
     if (!from) return;
     const color = new THREE.Color(SCHOOL_COLORS[school] ?? 0xffffff);
+    const sprites = projectileSprites(school);
     this.projectiles.push({
       pos: from.clone(),
       targetId,
@@ -149,19 +259,27 @@ export class Vfx {
       trailColor: color.clone().multiplyScalar(hdr(1.4)),
       speed: 26,
       ttl: 3,
+      coreSprite: sprites.core,
+      trailSprite: sprites.trail,
     });
   }
 
   burst(at: THREE.Vector3, school: string, count = 18, power = 1): void {
     const c = new THREE.Color(SCHOOL_COLORS[school] ?? 0xffffff).multiplyScalar(hdr(1.6));
+    const isFire = school === 'fire';
     for (let i = 0; i < count; i++) {
       const a = Math.random() * Math.PI * 2;
       const up = Math.random() * 0.9 + 0.1;
       const sp = (2 + Math.random() * 4.5) * power;
+      // fire bursts read as flame puffs; everything else as spark showers
+      const sprite = isFire
+        ? (i % 3 === 0 ? SPR.firePuff : SPR.flame)
+        : (i % 3 === 0 ? SPR.star : i % 2 === 0 ? SPR.sparkle : SPR.sparkBurst);
       this.spawn(
         at.x, at.y, at.z,
         Math.sin(a) * sp, up * sp * 0.8, Math.cos(a) * sp,
         c, 0.34 + Math.random() * 0.3 * power, 0.45 + Math.random() * 0.35, 7,
+        sprite,
       );
     }
   }
@@ -175,10 +293,15 @@ export class Vfx {
     const at = this.anchor(centerId, 0.12);
     if (!at) return;
     const c = new THREE.Color(SCHOOL_COLORS[school] ?? 0xffffff).multiplyScalar(hdr(1.6));
+    // one expanding rune ring at the centre sells the shockwave
+    this.spawn(at.x, at.y + 0.3, at.z, 0, 0.3, 0, c, 1.5, 0.4, 0, SPR.ring, 0);
     for (let i = 0; i < 34; i++) {
       const a = (i / 34) * Math.PI * 2;
       const sp = 11 + Math.random() * 3;
-      this.spawn(at.x, at.y + 0.25, at.z, Math.sin(a) * sp, 1.2, Math.cos(a) * sp, c, 0.5, 0.55, 6);
+      this.spawn(
+        at.x, at.y + 0.25, at.z, Math.sin(a) * sp, 1.2, Math.cos(a) * sp, c, 0.5, 0.55, 6,
+        i % 4 === 0 ? SPR.magicRune : SPR.sparkle,
+      );
     }
   }
 
@@ -194,6 +317,7 @@ export class Vfx {
         at.x + Math.sin(a) * r, at.y + Math.random() * 0.4, at.z + Math.cos(a) * r,
         Math.sin(a) * 0.25, 1.6 + Math.random() * 1.4, Math.cos(a) * 0.25,
         i % 3 === 0 ? green : gold, 0.3 + Math.random() * 0.25, 0.9 + Math.random() * 0.5, -1.2,
+        i % 2 === 0 ? SPR.star : SPR.sparkle,
       );
     }
   }
@@ -206,7 +330,7 @@ export class Vfx {
       this.spawn(
         at.x + Math.sin(a) * 0.85, at.y + 0.2, at.z + Math.cos(a) * 0.85,
         -Math.cos(a) * 1.6, 2.1, Math.sin(a) * 1.6,
-        color, 0.3, 0.8, -1.5,
+        color, 0.3, 0.8, -1.5, SPR.magicWisp,
       );
     }
   }
@@ -214,8 +338,11 @@ export class Vfx {
   meleeSpark(targetId: number, crit: boolean): void {
     const at = this.anchor(targetId, 0.55);
     if (!at) return;
-    // big enough to actually read mid-fight at 1600x900
-    this.burst(at, 'physical', crit ? 22 : 10, crit ? 1.4 : 0.85);
+    // a single slash arc reads as the hit itself...
+    const steel = new THREE.Color(0xffe6c0).multiplyScalar(hdr(crit ? 2.0 : 1.5));
+    this.spawn(at.x, at.y + 0.1, at.z, 0, 0.4, 0, steel, crit ? 1.0 : 0.75, 0.18, 0, SPR.slash);
+    // ...backed by a steel-spark shower big enough to read at 1600x900
+    this.burst(at, 'physical', crit ? 20 : 9, crit ? 1.4 : 0.85);
   }
 
   levelUpPillar(targetId: number): void {
@@ -230,6 +357,7 @@ export class Vfx {
         at.x + Math.sin(a) * r, at.y + Math.random() * 0.3, at.z + Math.cos(a) * r,
         0, 4.5 + Math.random() * 3.5, 0,
         i % 4 === 0 ? white : gold, 0.42, 1.1 + Math.random() * 0.4, -1,
+        i % 3 === 0 ? SPR.star : SPR.sparkle,
       );
     }
   }
@@ -245,6 +373,7 @@ export class Vfx {
       at.x + Math.sin(a) * 0.5, at.y, at.z + Math.cos(a) * 0.5,
       0, 0.9 + Math.random(), 0,
       c, 0.26, 0.5, -0.5,
+      school === 'fire' ? SPR.flame : SPR.magicWisp,
     );
   }
 
@@ -254,16 +383,27 @@ export class Vfx {
     this.spawn(
       at.x + Math.sin(a) * 0.5, at.y + 0.55, at.z + Math.cos(a) * 0.5,
       Math.sin(a) * 1.2, 1.1, Math.cos(a) * 1.2,
-      0xcfe9ff, 0.3, 0.55, 5,
+      0xcfe9ff, 0.3, 0.55, 5, SPR.glowSoft,
     );
   }
 
   campfireEmber(at: THREE.Vector3, dt: number): void {
     if (Math.random() > dt * 6) return;
+    if (Math.random() < 0.3) {
+      // faint additive smoke puff drifting off the flame tip
+      this.spawn(
+        at.x + (Math.random() - 0.5) * 0.3, at.y + 1.0, at.z + (Math.random() - 0.5) * 0.3,
+        (Math.random() - 0.5) * 0.35, 0.8 + Math.random() * 0.5, (Math.random() - 0.5) * 0.35,
+        0x36322e, 0.7 + Math.random() * 0.5, 1.8 + Math.random() * 0.9, -0.25, SPR.smoke,
+      );
+      return;
+    }
+    // flame-tongue embers, mostly upright with a little flicker tilt
     this.spawn(
       at.x + (Math.random() - 0.5) * 0.5, at.y + 0.5, at.z + (Math.random() - 0.5) * 0.5,
       (Math.random() - 0.5) * 0.5, 1.6 + Math.random() * 1.2, (Math.random() - 0.5) * 0.5,
       Math.random() < 0.4 ? 0xffd14d : 0xff7a2a, 0.2, 1.0 + Math.random() * 0.6, -0.4,
+      SPR.flame, (Math.random() - 0.5) * 0.6,
     );
   }
 
@@ -283,9 +423,9 @@ export class Vfx {
       const dist = dir.length();
       const step = pr.speed * dt;
       if (dist <= Math.max(0.7, step)) {
-        // impact: school-tinted flash + burst that survives a 30fps frame
+        // impact: school-tinted cross-flash + burst that survives a 30fps frame
         this.tmpColor.copy(pr.color).multiplyScalar(hdr(1.6));
-        this.spawn(target.x, target.y, target.z, 0, 0.5, 0, this.tmpColor, 0.8, 0.22);
+        this.spawn(target.x, target.y, target.z, 0, 0.5, 0, this.tmpColor, 1.1, 0.22, 0, SPR.flash);
         for (let k = 0; k < 22; k++) {
           const a = Math.random() * Math.PI * 2;
           const sp = 2.5 + Math.random() * 4;
@@ -293,6 +433,7 @@ export class Vfx {
             target.x, target.y, target.z,
             Math.sin(a) * sp, Math.random() * 3, Math.cos(a) * sp,
             this.tmpColor, 0.44, 0.55, 7,
+            k % 2 === 0 ? SPR.sparkle : SPR.sparkBurst,
           );
         }
         this.projectiles.splice(i, 1);
@@ -301,11 +442,11 @@ export class Vfx {
       dir.multiplyScalar(step / dist);
       pr.pos.add(dir);
       // bright HDR core (blooms into a comet) + sparkling trail
-      this.spawn(pr.pos.x, pr.pos.y, pr.pos.z, 0, 0, 0, pr.coreColor, 1.0, 0.12);
+      this.spawn(pr.pos.x, pr.pos.y, pr.pos.z, 0, 0, 0, pr.coreColor, 1.0, 0.12, 0, pr.coreSprite);
       this.spawn(
         pr.pos.x + (Math.random() - 0.5) * 0.25, pr.pos.y + (Math.random() - 0.5) * 0.25, pr.pos.z + (Math.random() - 0.5) * 0.25,
         (Math.random() - 0.5) * 0.8, 0.4, (Math.random() - 0.5) * 0.8,
-        pr.trailColor, 0.32, 0.6, 1.5,
+        pr.trailColor, 0.32, 0.6, 1.5, pr.trailSprite,
       );
     }
 
@@ -329,5 +470,7 @@ export class Vfx {
     (geo.attributes.aSize as THREE.BufferAttribute).needsUpdate = true;
     (geo.attributes.aAlpha as THREE.BufferAttribute).needsUpdate = true;
     (geo.attributes.aColor as THREE.BufferAttribute).needsUpdate = true;
+    (geo.attributes.aSprite as THREE.BufferAttribute).needsUpdate = true;
+    (geo.attributes.aRot as THREE.BufferAttribute).needsUpdate = true;
   }
 }

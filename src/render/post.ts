@@ -4,12 +4,17 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
-import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
+import { N8AOPass } from 'n8ao';
 import { GFX, sharedUniforms } from './gfx';
 
-// Post chain: RenderPass -> [GTAO (ultra)] -> UnrealBloom -> OutputPass
-// (ACES tonemap + sRGB, reads renderer.toneMapping) -> GradePass (display
-// space lift/gamma/gain, saturation, vignette, faint animated grain).
+// Post chain: RenderPass -> N8AO (high: half-res Low, ultra: full-res Medium)
+// -> UnrealBloom -> OutputPass (ACES tonemap + sRGB, reads
+// renderer.toneMapping) -> GradePass (display space lift/gamma/gain,
+// saturation, vignette, faint animated grain).
+//
+// N8AO replaced three's GTAOPass: better denoise at lower sample counts, and
+// cheap enough (half-res) to run on the high tier where GTAO was ultra-only.
+// It sits mid-chain so its autosetGamma leaves the buffer linear for bloom.
 //
 // AA: MSAA on the composer's HalfFloat target (WebGL2) — resolves geometry
 // edges before post without smearing the crisp low-poly silhouettes.
@@ -54,7 +59,7 @@ const GradeShader = {
 export interface PostPipeline {
   composer: EffectComposer;
   bloom: UnrealBloomPass;
-  gtao: GTAOPass | null;
+  ao: N8AOPass | null;
   grade: ShaderPass;
   setSize(width: number, height: number): void;
   render(): void;
@@ -72,14 +77,36 @@ export function buildComposer(
     type: THREE.HalfFloatType,
   });
   const composer = new EffectComposer(webgl, target);
-  composer.addPass(new RenderPass(scene, camera));
 
-  let gtao: GTAOPass | null = null;
+  let ao: N8AOPass | null = null;
   if (GFX.ao) {
-    gtao = new GTAOPass(scene, camera, size.x, size.y);
-    gtao.output = GTAOPass.OUTPUT.Default;
-    gtao.updateGtaoMaterial({ radius: 0.9, distanceExponent: 1.6, thickness: 1.2, scale: 1.0 });
-    composer.addPass(gtao);
+    // N8AOPass REPLACES RenderPass: it renders the scene into its own
+    // HalfFloat beauty+depth target (a separate RenderPass would be a
+    // discarded full scene draw). Trade-off: the composer's MSAA target
+    // never sees the scene, so AA comes from the bloom/grade softening +
+    // pixel ratio. Measured acceptable; revisit if edges crawl.
+    ao = new N8AOPass(scene, camera, size.x, size.y);
+    // world-space radius tuned for 2.6u-tall characters: grounds props and
+    // darkens building/rock crevices without dirtying open fields
+    ao.configuration.aoRadius = 1.8;
+    ao.configuration.distanceFalloff = 3.6;
+    ao.configuration.intensity = 2.4;
+    // mid-chain: the buffer must stay linear for bloom/OutputPass (autoset
+    // guesses from renderToScreen, but be explicit — a gamma-lifted frame
+    // here washes the whole image out)
+    ao.configuration.gammaCorrection = false;
+    if (GFX.tier === 'ultra') {
+      ao.setQualityMode('Medium');
+    } else {
+      // high tier: half-res + depth-aware upsample keeps it ~1ms-class on
+      // real GPUs (and survivable under a forced-high SwiftShader probe)
+      ao.setQualityMode('Low');
+      ao.configuration.halfRes = true;
+      ao.configuration.depthAwareUpsampling = true;
+    }
+    composer.addPass(ao);
+  } else {
+    composer.addPass(new RenderPass(scene, camera));
   }
 
   const bloom = new UnrealBloomPass(size.clone(), BLOOM_STRENGTH, BLOOM_RADIUS, BLOOM_THRESHOLD);
@@ -93,10 +120,10 @@ export function buildComposer(
   return {
     composer,
     bloom,
-    gtao,
+    ao,
     grade,
     setSize(width: number, height: number): void {
-      composer.setSize(width, height); // also resizes every pass (GTAO, bloom)
+      composer.setSize(width, height); // also resizes every pass (N8AO, bloom)
     },
     render(): void {
       composer.render();

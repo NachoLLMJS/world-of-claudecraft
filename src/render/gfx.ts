@@ -13,9 +13,9 @@ export type GfxTier = 'low' | 'high' | 'ultra';
 
 export interface GfxSettings {
   readonly tier: GfxTier;
-  /** post-processing chain (bloom + grade, GTAO on ultra) */
+  /** post-processing chain (N8AO + bloom + grade) */
   readonly composer: boolean;
-  /** GTAO ambient occlusion pass */
+  /** N8AO screen-space ambient occlusion pass */
   readonly ao: boolean;
   /** MSAA samples on the composer's HalfFloat target (WebGL2) */
   readonly msaaSamples: number;
@@ -35,7 +35,9 @@ function settingsFor(tier: GfxTier): GfxSettings {
   return {
     tier,
     composer: tier !== 'low',
-    ao: tier === 'ultra', // promote to 'high' only if measured <3ms
+    // N8AO runs on both composer tiers: half-res + Low quality on high keeps
+    // it ~1ms-class on real GPUs; ultra gets full-res Medium
+    ao: tier !== 'low',
     msaaSamples: tier === 'low' ? 0 : 4,
     pixelRatioCap: tier === 'low' ? 1 : tier === 'high' ? 1.75 : 2.5,
     shadowMap: tier === 'low' ? 1024 : 4096,
@@ -102,6 +104,10 @@ export interface SurfaceMatOpts {
   color?: number;
   map?: THREE.Texture;
   normalMap?: THREE.Texture;
+  /** PBR roughness map (high/ultra only; ignored on the Lambert tier) */
+  roughnessMap?: THREE.Texture;
+  /** baked AO map — needs uv2 on the geometry (high/ultra only) */
+  aoMap?: THREE.Texture;
   roughness?: number;
   metalness?: number;
   flatShading?: boolean;
@@ -140,6 +146,8 @@ export function surfaceMat(opts: SurfaceMatOpts): THREE.Material {
     ...opts,
     map: opts.map?.uuid,
     normalMap: opts.normalMap?.uuid,
+    roughnessMap: opts.roughnessMap?.uuid,
+    aoMap: opts.aoMap?.uuid,
     std: GFX.standardMaterials,
   });
   const cached = matCache.get(key);
@@ -149,6 +157,8 @@ export function surfaceMat(opts: SurfaceMatOpts): THREE.Material {
       color: opts.color ?? 0xffffff,
       map: opts.map ?? null,
       normalMap: opts.normalMap ?? null,
+      roughnessMap: opts.roughnessMap ?? null,
+      aoMap: opts.aoMap ?? null,
       roughness: opts.roughness ?? 0.85,
       metalness: opts.metalness ?? 0,
       flatShading: opts.flatShading ?? false,
