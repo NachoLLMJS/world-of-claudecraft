@@ -24,6 +24,8 @@ runs for everyone online.
 
 ![World of Claude](worldofclaude.png)
 
+![World of Claudecraft community](woc_community.png)
+
 ---
 
 ## Host it (one command)
