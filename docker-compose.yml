@@ -32,6 +32,8 @@ services:
       PORT: "8787"
       USERNAME_BANLIST: ${USERNAME_BANLIST:-}
       USERNAME_BANLIST_FILE: ${USERNAME_BANLIST_FILE:-}
+      CHAT_CENSOR_LIST: ${CHAT_CENSOR_LIST:-}
+      CHAT_CENSOR_FILE: ${CHAT_CENSOR_FILE:-}
     # loopback-only: the TLS reverse proxy (Caddy) is the public entrance
     ports:
       - "127.0.0.1:8787:8787"

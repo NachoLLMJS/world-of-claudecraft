@@ -102,6 +102,9 @@ For off-box safety, sync the directory to S3 occasionally:
 - **Username bans**: set `USERNAME_BANLIST_FILE=/opt/eastbrook/username-banlist.txt`
   to load blocked username terms from a private newline- or comma-separated
   file. `USERNAME_BANLIST` can also provide a comma-separated inline list.
+- **Chat censorship**: set `CHAT_CENSOR_FILE=/opt/eastbrook/chat-censor.txt`
+  to mask configured terms from a private newline- or comma-separated file.
+  `CHAT_CENSOR_LIST` can also provide a comma-separated inline list.
 - **Never** set `ALLOW_DEV_COMMANDS=1` in production — it enables the
   level/teleport cheats used by the test bots.
 - Health check: `curl -s localhost:8787/api/status` on the box returns

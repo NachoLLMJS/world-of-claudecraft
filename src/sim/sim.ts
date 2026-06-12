@@ -2520,8 +2520,8 @@ export class Sim {
       }
       if (!target) { this.error(r.meta.entityId, `There is no player named '${targetName}' online.`); return null; }
       if (target.entityId === r.meta.entityId) { this.error(r.meta.entityId, 'You mutter to yourself. Nobody hears it.'); return null; }
-      this.emit({ type: 'chat', from: r.meta.name, text: msg, channel: 'whisper', pid: target.entityId });
-      this.emit({ type: 'chat', from: r.meta.name, to: target.name, text: msg, channel: 'whisper', pid: r.meta.entityId });
+      this.emit({ type: 'chat', fromPid: r.meta.entityId, from: r.meta.name, text: msg, channel: 'whisper', pid: target.entityId });
+      this.emit({ type: 'chat', fromPid: r.meta.entityId, from: r.meta.name, to: target.name, text: msg, channel: 'whisper', pid: r.meta.entityId });
       return { channel: 'whisper', message: msg };
     }
 
@@ -2532,7 +2532,7 @@ export class Sim {
       const party = this.partyOf(r.meta.entityId);
       if (!party) { this.error(r.meta.entityId, 'You are not in a party.'); return null; }
       for (const mPid of party.members) {
-        this.emit({ type: 'chat', from: r.meta.name, text: clean, channel: 'party', pid: mPid });
+        this.emit({ type: 'chat', fromPid: r.meta.entityId, from: r.meta.name, text: clean, channel: 'party', pid: mPid });
       }
       return { channel: 'party', message: clean };
     }
@@ -2541,7 +2541,7 @@ export class Sim {
     if (/^\/g(eneral)?\s/i.test(raw)) {
       const clean = raw.replace(/^\/g(eneral)?\s+/i, '').trim();
       if (!clean) return null;
-      this.emit({ type: 'chat', from: r.meta.name, text: clean, channel: 'general' });
+      this.emit({ type: 'chat', fromPid: r.meta.entityId, from: r.meta.name, text: clean, channel: 'general' });
       return { channel: 'general', message: clean };
     }
 
@@ -2557,7 +2557,7 @@ export class Sim {
     for (const meta of this.players.values()) {
       const e = this.entities.get(meta.entityId);
       if (!e || dist2d(r.e.pos, e.pos) > range) continue;
-      this.emit({ type: 'chat', from: r.meta.name, text: clean, channel, entityId: r.e.id, pid: meta.entityId });
+      this.emit({ type: 'chat', fromPid: r.meta.entityId, from: r.meta.name, text: clean, channel, entityId: r.e.id, pid: meta.entityId });
     }
     return { channel, message: clean };
   }

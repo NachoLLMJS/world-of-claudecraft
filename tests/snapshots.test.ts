@@ -8,7 +8,7 @@ vi.mock('../server/db', () => ({
   insertChatLogs: vi.fn(async () => {}),
 }));
 
-import { GameServer, ClientSession } from '../server/game';
+import { censorChatText, GameServer, ClientSession } from '../server/game';
 import { ClientWorld } from '../src/net/online';
 
 const DELTA_KEYS = ['inv', 'equip', 'qlog', 'qdone', 'cds', 'stats', 'weapon', 'party', 'trade', 'duel'];
@@ -64,6 +64,18 @@ function bareClient(pid: number): ClientWorld {
   c.eventQueue = [];
   c.mouselookFacing = null;
   return c;
+}
+
+function withChatCensorList(list: string | undefined, test: () => void): void {
+  const prev = process.env.CHAT_CENSOR_LIST;
+  if (list === undefined) delete process.env.CHAT_CENSOR_LIST;
+  else process.env.CHAT_CENSOR_LIST = list;
+  try {
+    test();
+  } finally {
+    if (prev === undefined) delete process.env.CHAT_CENSOR_LIST;
+    else process.env.CHAT_CENSOR_LIST = prev;
+  }
 }
 
 describe('delta snapshots', () => {
@@ -145,6 +157,65 @@ describe('delta snapshots', () => {
     expect(snapOld.self).not.toHaveProperty('inv');
     // both players spawn together, so each sees the other in ents
     expect(snapNew.ents.some((e: any) => e.id === session.pid)).toBe(true);
+  });
+});
+
+describe('chat moderation', () => {
+  it('rate-limits chat bursts per connected client before cooldown', () => {
+    const server = new GameServer();
+    const fc = fakeWs();
+    const session = joinServer(server, fc, 1, 'Testa');
+    fc.sent.length = 0;
+
+    for (let i = 0; i < 6; i++) {
+      server.handleMessage(session, JSON.stringify({ t: 'cmd', cmd: 'chat', text: `msg ${i}` }));
+    }
+    (server as any).routeEvents(server.sim.tick());
+
+    const events = fc.sent.flatMap((msg) => msg.t === 'events' ? msg.list : []);
+    expect(events.filter((ev) => ev.type === 'chat')).toHaveLength(5);
+    expect(events).toContainEqual(expect.objectContaining({
+      type: 'error',
+      text: 'You are sending messages too quickly. Slow down.',
+    }));
+  });
+
+  it('locks chat for 20 seconds after repeated over-limit messages', () => {
+    const server = new GameServer();
+    const fc = fakeWs();
+    const session = joinServer(server, fc, 1, 'Testa');
+    fc.sent.length = 0;
+
+    for (let i = 0; i < 8; i++) {
+      server.handleMessage(session, JSON.stringify({ t: 'cmd', cmd: 'chat', text: `msg ${i}` }));
+    }
+    (server as any).routeEvents(server.sim.tick());
+
+    const events = fc.sent.flatMap((msg) => msg.t === 'events' ? msg.list : []);
+    expect(events.filter((ev) => ev.type === 'chat')).toHaveLength(5);
+    expect(events).toContainEqual(expect.objectContaining({
+      type: 'error',
+      text: 'Chat locked for 20s because you are sending messages too quickly.',
+    }));
+  });
+
+  it('censors configured terrible words while still sending chat', () => {
+    withChatCensorList('blockedterm', () => {
+      expect(censorChatText('hello blockedterm and bl0ckedt3rm')).toBe('hello *********** and ***********');
+
+      const server = new GameServer();
+      const fc = fakeWs();
+      const session = joinServer(server, fc, 1, 'Testa');
+      fc.sent.length = 0;
+      server.handleMessage(session, JSON.stringify({ t: 'cmd', cmd: 'chat', text: 'hello blockedterm' }));
+      (server as any).routeEvents(server.sim.tick());
+
+      const events = fc.sent.flatMap((msg) => msg.t === 'events' ? msg.list : []);
+      expect(events).toContainEqual(expect.objectContaining({
+        type: 'chat',
+        text: 'hello ***********',
+      }));
+    });
   });
 });
 

@@ -451,7 +451,7 @@ export type SimEvent = { pid?: number } & (
   // entity id so the client can hang a chat bubble over their head; whisper
   // goes to the target (and echoes to the sender with `to` set); general is
   // a world-wide broadcast
-  | { type: 'chat'; from: string; text: string; channel?: 'say' | 'yell' | 'whisper' | 'general' | 'party'; entityId?: number; to?: string }
+  | { type: 'chat'; fromPid: number; from: string; text: string; channel?: 'say' | 'yell' | 'whisper' | 'general' | 'party'; entityId?: number; to?: string }
   | { type: 'partyInvite'; fromPid: number; fromName: string }
   | { type: 'tradeRequest'; fromPid: number; fromName: string }
   | { type: 'tradeDone' }

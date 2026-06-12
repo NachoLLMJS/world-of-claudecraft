@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import type { WebSocket } from 'ws';
 import { Sim } from '../src/sim/sim';
 import type { PlayerMeta } from '../src/sim/sim';
@@ -10,6 +11,11 @@ const WORLD_SEED = 20061;
 const INTEREST_RADIUS = 120;
 const EVENT_RADIUS = 90;
 const AUTOSAVE_SECONDS = 30;
+const CHAT_RATE_BURST = 5;
+const CHAT_RATE_REFILL_PER_SECOND = 1 / 3; // sustained 20 messages/minute
+const CHAT_RATE_ERROR_COOLDOWN_SECONDS = 4;
+const CHAT_COOLDOWN_SECONDS = 20;
+const CHAT_RATE_VIOLATIONS_FOR_COOLDOWN = 3;
 // Exponential moving average weight for the per-tick duration stat.
 const TICK_EMA_ALPHA = 0.05;
 
@@ -23,6 +29,11 @@ export interface ClientSession {
   alive: boolean;
   joinedAt: number;
   dbSessionId: number | null; // play_sessions row, set once the insert lands
+  chatTokens: number;
+  chatLastRefill: number;
+  chatLastRateError: number;
+  chatRateViolations: number;
+  chatCooldownUntil: number;
   // serialized form of each delta self field as last sent to this client;
   // a field is omitted from a snapshot while its serialization is unchanged
   lastSent: Record<string, string>;
@@ -96,6 +107,56 @@ function round2(v: number): number {
   return Math.round(v * 100) / 100;
 }
 
+const CONFUSABLE_CHARS: Record<string, string> = {
+  '0': 'o',
+  '1': 'i',
+  '!': 'i',
+  '|': 'i',
+  '3': 'e',
+  '4': 'a',
+  '@': 'a',
+  '5': 's',
+  '$': 's',
+  '7': 't',
+  '+': 't',
+  '8': 'b',
+};
+
+function normalizedCensorTerm(term: string): string {
+  return term
+    .toLowerCase()
+    .replace(/[0134578!|@$+]/g, (ch) => CONFUSABLE_CHARS[ch] ?? ch)
+    .replace(/[^a-z]/g, '');
+}
+
+function parseCensorList(raw: string | undefined): string[] {
+  return (raw ?? '')
+    .split(/[\s,]+/)
+    .map((term) => normalizedCensorTerm(term))
+    .filter((term) => term.length > 0);
+}
+
+function configuredChatCensorTerms(): string[] {
+  const terms = parseCensorList(process.env.CHAT_CENSOR_LIST);
+  const file = process.env.CHAT_CENSOR_FILE;
+  if (!file) return terms;
+  try {
+    return terms.concat(parseCensorList(readFileSync(file, 'utf8')));
+  } catch (err) {
+    console.warn(`could not read CHAT_CENSOR_FILE (${file}):`, err);
+    return terms;
+  }
+}
+
+export function censorChatText(text: string): string {
+  const terms = configuredChatCensorTerms();
+  if (terms.length === 0) return text;
+  return text.replace(/[A-Za-z0-9_@$!|+]+/g, (token) => {
+    const normalized = normalizedCensorTerm(token);
+    return terms.some((term) => normalized.includes(term)) ? '*'.repeat(token.length) : token;
+  });
+}
+
 export class GameServer {
   sim: Sim;
   clients = new Map<number, ClientSession>(); // by pid
@@ -156,6 +217,8 @@ export class GameServer {
     const session: ClientSession = {
       ws, accountId, characterId, pid, name,
       lastSave: Date.now(), alive: true, joinedAt: Date.now(), dbSessionId: null,
+      chatTokens: CHAT_RATE_BURST, chatLastRefill: Date.now() / 1000, chatLastRateError: 0,
+      chatRateViolations: 0, chatCooldownUntil: 0,
       lastSent: {},
     };
     this.clients.set(pid, session);
@@ -321,7 +384,8 @@ export class GameServer {
       case 'release': sim.releaseSpirit(pid); break;
       case 'chat': {
         if (typeof msg.text !== 'string') break;
-        const sent = sim.chat(msg.text, pid);
+        if (!this.consumeChatToken(session)) break;
+        const sent = sim.chat(censorChatText(msg.text), pid);
         if (sent) {
           this.chatLog.log({
             accountId: session.accountId,
@@ -538,6 +602,44 @@ export class GameServer {
     else if ('entityId' in ev && typeof ev.entityId === 'number') id = ev.entityId;
     if (id === undefined) return null; // chat/log etc: broadcast
     return this.sim.entities.get(id)?.pos ?? null;
+  }
+
+  private consumeChatToken(session: ClientSession): boolean {
+    const now = Date.now() / 1000;
+    if (session.chatCooldownUntil > now) {
+      if (now - session.chatLastRateError >= CHAT_RATE_ERROR_COOLDOWN_SECONDS) {
+        session.chatLastRateError = now;
+        const remaining = Math.ceil(session.chatCooldownUntil - now);
+        this.send(session, { t: 'events', list: [{ type: 'error', text: `Chat is on cooldown for ${remaining}s.` }] });
+      }
+      return false;
+    }
+    if (session.chatCooldownUntil > 0) {
+      session.chatCooldownUntil = 0;
+      session.chatRateViolations = 0;
+      session.chatTokens = CHAT_RATE_BURST;
+    }
+    const elapsed = Math.max(0, now - session.chatLastRefill);
+    session.chatTokens = Math.min(CHAT_RATE_BURST, session.chatTokens + elapsed * CHAT_RATE_REFILL_PER_SECOND);
+    session.chatLastRefill = now;
+    if (session.chatTokens >= 1) {
+      session.chatTokens -= 1;
+      session.chatRateViolations = 0;
+      return true;
+    }
+    session.chatRateViolations++;
+    if (session.chatRateViolations >= CHAT_RATE_VIOLATIONS_FOR_COOLDOWN) {
+      session.chatCooldownUntil = now + CHAT_COOLDOWN_SECONDS;
+      session.chatTokens = 0;
+      session.chatLastRateError = now;
+      this.send(session, { t: 'events', list: [{ type: 'error', text: `Chat locked for ${CHAT_COOLDOWN_SECONDS}s because you are sending messages too quickly.` }] });
+      return false;
+    }
+    if (now - session.chatLastRateError >= CHAT_RATE_ERROR_COOLDOWN_SECONDS) {
+      session.chatLastRateError = now;
+      this.send(session, { t: 'events', list: [{ type: 'error', text: 'You are sending messages too quickly. Slow down.' }] });
+    }
+    return false;
   }
 
   private broadcastSystem(text: string): void {
