@@ -10,8 +10,8 @@ import { createGroundObject, createMob, createNpc, createPlayer, recalcPlayerSta
 import { Rng } from './rng';
 import { SpatialGrid } from './spatial';
 import {
-  HEAL_THREAT_FACTOR, MELEE_SWITCH_MULT, RANGED_SWITCH_MULT, STEALTH_DETECTION_MULT,
-  TAUNT_FORCE_SECONDS, addThreat, clearThreat, threatModifier, topThreatValue,
+  HEAL_THREAT_FACTOR, MELEE_SWITCH_MULT, RANGED_SWITCH_MULT,
+  TAUNT_FORCE_SECONDS, addThreat, clearThreat, stealthDetectionRadius, threatModifier, topThreatValue,
 } from './threat';
 import { groundHeight, WATER_LEVEL } from './world';
 import {
@@ -2260,8 +2260,8 @@ export class Sim {
         const nearest = this.nearestLivingPlayer(mob.pos, 25);
         if (nearest) {
           let radius = Math.max(4, Math.min(20, template.aggroRadius + (mob.level - nearest.e.level) * 1.5));
-          // stealthed rogues are barely noticed
-          if (nearest.e.auras.some((a) => a.kind === 'stealth')) radius *= STEALTH_DETECTION_MULT;
+          // stealthed rogues are harder to detect, relative to observer level
+          if (nearest.e.auras.some((a) => a.kind === 'stealth')) radius = stealthDetectionRadius(mob, nearest.e, radius);
           if (nearest.d < radius) {
             this.aggroMob(mob, nearest.e, true);
             break;

@@ -3,7 +3,7 @@ import type { WebSocket } from 'ws';
 import { Sim } from '../src/sim/sim';
 import type { PlayerMeta } from '../src/sim/sim';
 import { DT, Entity, SimEvent, dist2d } from '../src/sim/types';
-import { threatEntries } from '../src/sim/threat';
+import { stealthDetectionRadius, threatEntries } from '../src/sim/threat';
 import { zoneAt, DUNGEONS } from '../src/sim/data';
 import { saveCharacterState, openPlaySession, closePlaySession, insertChatLogs } from './db';
 import { ChatLogger } from './chat_log';
@@ -163,6 +163,16 @@ function interestLimitSq(e: Entity, known: boolean): number {
     return known ? NPC_DROP_RADIUS * NPC_DROP_RADIUS : NPC_INTEREST_RADIUS * NPC_INTEREST_RADIUS;
   }
   return known ? INTEREST_DROP_RADIUS * INTEREST_DROP_RADIUS : INTEREST_RADIUS * INTEREST_RADIUS;
+}
+
+function isStealthed(e: Entity): boolean {
+  return e.auras.some((a) => a.kind === 'stealth');
+}
+
+function canObserveEntity(viewer: Entity, e: Entity, d2: number): boolean {
+  if (e.kind !== 'player' || !isStealthed(e)) return true;
+  const radius = stealthDetectionRadius(viewer, e, INTEREST_RADIUS);
+  return d2 <= radius * radius;
 }
 
 // full rate close up and for anything the viewer is fighting; mid range
@@ -569,6 +579,7 @@ export class GameServer {
       const present = new Set<number>();
       this.sim.grid.forEachInRadius(p.pos.x, p.pos.z, INTEREST_QUERY_RADIUS, (e, d2) => {
         if (e.id === session.pid) return;
+        if (!canObserveEntity(p, e, d2)) return;
         const known = session.sentEnts.get(e.id);
         // the viewer's current target stays in interest to the widest drop
         // radius so its unit frame doesn't vanish mid-chase

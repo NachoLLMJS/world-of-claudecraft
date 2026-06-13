@@ -734,6 +734,7 @@ export class Renderer {
       // the shadow gates below must not run the base rig's proxy under a form
       const polyed = e.auras.some((a) => a.kind === 'polymorph');
       const bear = !polyed && e.auras.some((a) => a.kind === 'form_bear');
+      const stealthed = e.auras.some((a) => a.kind === 'stealth');
       // distance cull: far rigs are invisible specks but cost real draw calls
       const cdx = e.pos.x - p.pos.x, cdz = e.pos.z - p.pos.z;
       const d2 = cdx * cdx + cdz * cdz;
@@ -816,6 +817,8 @@ export class Renderer {
       if (v.bearVisual) v.bearVisual.root.visible = bear;
       const active = polyed && v.sheepVisual ? v.sheepVisual
         : bear && v.bearVisual ? v.bearVisual : v.visual;
+      const ghost = e.id !== this.sim.playerId && e.kind === 'player' && stealthed;
+      active.setGhost(ghost);
       v.visual.root.visible = active === v.visual;
       // distant rigs swap to the single-draw baked idle-pose mesh
       v.visual.setFar(v.isFar && active === v.visual);
@@ -1038,6 +1041,7 @@ export class Renderer {
         // other players: friendly blue with an hp bar
         v.nameEl.style.color = '#7fb8ff';
         v.nameEl.textContent = `${e.name}`;
+        v.nameplate.style.opacity = e.auras.some((a) => a.kind === 'stealth') ? '0.55' : '1';
         v.hpBar.style.display = e.dead ? 'none' : '';
         v.hpFill.style.width = `${(100 * e.hp / Math.max(1, e.maxHp)).toFixed(1)}%`;
         v.markerEl.textContent = '';

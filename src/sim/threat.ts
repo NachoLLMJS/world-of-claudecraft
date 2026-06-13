@@ -19,8 +19,12 @@ export const BEAR_FORM_THREAT_MULT = 1.3;
 export const CAT_FORM_THREAT_MULT = 0.71;
 export const RIGHTEOUS_FURY_THREAT_MULT = 1.6; // holy school only
 export const TAUNT_FORCE_SECONDS = 3;
-// Stealth shrinks the radius at which idle mobs notice you.
+// Stealth shrinks detection at equal level; higher-level observers pierce it
+// more easily, lower-level observers struggle. Shared by mobs and players.
 export const STEALTH_DETECTION_MULT = 0.25;
+export const STEALTH_DETECTION_PER_LEVEL = 0.08;
+export const STEALTH_DETECTION_MIN_MULT = 0.1;
+export const STEALTH_DETECTION_MAX_MULT = 1;
 
 /** Stance/form threat modifier for everything `source` does (flat bonus
  *  threat included, as in classic). School-specific modifiers (Righteous
@@ -34,6 +38,15 @@ export function threatModifier(source: Entity, school: string): number {
     else if (a.kind === 'righteous_fury' && school === 'holy') mod *= RIGHTEOUS_FURY_THREAT_MULT;
   }
   return mod;
+}
+
+export function stealthDetectionMultiplier(observerLevel: number, stealthedLevel: number): number {
+  const raw = STEALTH_DETECTION_MULT + (observerLevel - stealthedLevel) * STEALTH_DETECTION_PER_LEVEL;
+  return Math.max(STEALTH_DETECTION_MIN_MULT, Math.min(STEALTH_DETECTION_MAX_MULT, raw));
+}
+
+export function stealthDetectionRadius(observer: Entity, stealthed: Entity, baseRadius: number): number {
+  return baseRadius * stealthDetectionMultiplier(observer.level, stealthed.level);
 }
 
 export function addThreat(mob: Entity, sourceId: number, amount: number): void {
