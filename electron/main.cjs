@@ -1,4 +1,4 @@
-const { app, BrowserWindow, net, protocol, shell } = require('electron');
+const { app, BrowserWindow, net, protocol, session, shell } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
@@ -21,6 +21,27 @@ function registerAppProtocol() {
       return new Response('not found', { status: 404 });
     }
     return net.fetch(pathToFileURL(filePath).toString());
+  });
+}
+
+function lockDownPermissions() {
+  const deny = [
+    'camera',
+    'clipboard-read',
+    'display-capture',
+    'geolocation',
+    'media',
+    'mediaKeySystem',
+    'microphone',
+    'midi',
+    'notifications',
+    'openExternal',
+    'pointerLock',
+  ];
+  const denied = new Set(deny);
+  session.defaultSession.setPermissionCheckHandler((_webContents, permission) => !denied.has(permission));
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    callback(!denied.has(permission));
   });
 }
 
@@ -63,6 +84,7 @@ function createMainWindow() {
 
 app.whenReady().then(() => {
   registerAppProtocol();
+  lockDownPermissions();
   createMainWindow();
 
   app.on('activate', () => {
