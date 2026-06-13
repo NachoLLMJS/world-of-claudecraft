@@ -45,6 +45,9 @@ CREATE TABLE IF NOT EXISTS characters (
 );
 CREATE INDEX IF NOT EXISTS characters_account ON characters(account_id);
 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS privy_user_id TEXT UNIQUE;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS solana_wallet TEXT;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS auth_provider TEXT NOT NULL DEFAULT 'password';
 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS suspended_until TIMESTAMPTZ;
 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS banned_at TIMESTAMPTZ;
 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS moderation_reason TEXT;
@@ -126,6 +129,9 @@ export interface AccountRow {
   id: number;
   username: string;
   password_hash: string;
+  privy_user_id?: string | null;
+  solana_wallet?: string | null;
+  auth_provider?: string;
 }
 
 export interface AccountModerationStatus {
@@ -138,15 +144,36 @@ export interface AccountModerationStatus {
 
 export async function createAccount(username: string, passwordHash: string): Promise<AccountRow> {
   const res = await pool.query(
-    'INSERT INTO accounts (username, password_hash) VALUES ($1, $2) RETURNING id, username, password_hash',
+    'INSERT INTO accounts (username, password_hash) VALUES ($1, $2) RETURNING id, username, password_hash, privy_user_id, solana_wallet, auth_provider',
     [username, passwordHash],
   );
   return res.rows[0];
 }
 
 export async function findAccount(username: string): Promise<AccountRow | null> {
-  const res = await pool.query('SELECT id, username, password_hash FROM accounts WHERE username = $1', [username]);
+  const res = await pool.query('SELECT id, username, password_hash, privy_user_id, solana_wallet, auth_provider FROM accounts WHERE username = $1', [username]);
   return res.rows[0] ?? null;
+}
+
+function walletUsername(privyUserId: string, solanaWallet: string): string {
+  const walletPart = solanaWallet.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10) || 'wallet';
+  const userPart = privyUserId.replace(/[^a-zA-Z0-9]/g, '').slice(-8) || 'privy';
+  return `sol_${walletPart}_${userPart}`.slice(0, 24);
+}
+
+export async function upsertPrivyAccount(privyUserId: string, solanaWallet: string): Promise<AccountRow> {
+  const username = walletUsername(privyUserId, solanaWallet);
+  const res = await pool.query(
+    `INSERT INTO accounts (username, password_hash, privy_user_id, solana_wallet, auth_provider, last_login)
+     VALUES ($1, $2, $3, $4, 'privy', now())
+     ON CONFLICT (privy_user_id) DO UPDATE
+       SET solana_wallet = EXCLUDED.solana_wallet,
+           last_login = now(),
+           auth_provider = 'privy'
+     RETURNING id, username, password_hash, privy_user_id, solana_wallet, auth_provider`,
+    [username, 'privy:password-disabled', privyUserId, solanaWallet],
+  );
+  return res.rows[0];
 }
 
 export async function touchLogin(accountId: number): Promise<void> {

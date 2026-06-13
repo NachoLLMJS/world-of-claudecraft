@@ -1031,6 +1031,29 @@
     gap: var(--spacing-sm);
     margin-top: var(--spacing-md);
   }
+  .auth-copy {
+    color: var(--color-text-muted);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.45;
+    text-align: center;
+    margin: 0 0 var(--spacing-md);
+  }
+  .privy-realm-login {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-sm);
+  }
+  .privy-realm-login .btn-primary:first-child {
+    grid-column: span 2;
+  }
+  .privy-user-hint {
+    grid-column: span 2;
+    color: var(--color-text-muted);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    text-align: center;
+  }
   .auth-actions-split {
     max-width: 400px;
     margin: 0 auto;
@@ -2110,51 +2133,12 @@
 
     <form id="login-panel" class="panel auth-panel auth-panel-premium" hidden novalidate>
       <h2 class="auth-title">Enter the Realm</h2>
-      
-      <div class="auth-field">
-        <label for="login-user" class="auth-label">Username</label>
-        <div id="login-user-error" class="auth-field-error" aria-live="polite">Please enter your username.</div>
-        <input 
-          id="login-user" 
-          name="username"
-          type="text" 
-          maxlength="24" 
-          placeholder="Enter username" 
-          autocomplete="username" 
-          required 
-          aria-describedby="login-user-error"
-        />
-      </div>
-
-      <div class="auth-field">
-        <label for="login-pass" class="auth-label">Password</label>
-        <div id="login-pass-error" class="auth-field-error" aria-live="polite">Please enter your password.</div>
-        <div class="password-wrapper">
-          <input 
-            id="login-pass" 
-            name="password"
-            type="password" 
-            maxlength="128" 
-            placeholder="Enter password" 
-            autocomplete="current-password" 
-            required 
-            aria-describedby="login-pass-error"
-          />
-          <button type="button" class="password-toggle" id="btn-toggle-password" aria-label="Show password" aria-pressed="false">
-            <svg class="eye-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-              <circle cx="12" cy="12" r="3"></circle>
-              <line class="eye-slash" x1="2" y1="2" x2="22" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line>
-            </svg>
-          </button>
-        </div>
-      </div>
+      <p class="auth-copy">Login with X / Twitter, email, or a Solana wallet through Privy. Privy creates a Solana embedded wallet automatically, and your characters stay tied to that same Privy wallet identity.</p>
 
       <div id="login-error" class="auth-error" aria-live="polite"></div>
+      <div id="privy-login-mount"></div>
       
       <div class="auth-actions">
-        <button type="submit" class="btn btn-primary" id="btn-login">Log In</button>
-        <button type="button" class="btn btn-secondary" id="btn-register">Create Account</button>
         <button type="button" class="btn btn-back" id="btn-login-back">Back</button>
       </div>
     </form>

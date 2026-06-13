@@ -3,14 +3,15 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { WebSocketServer, WebSocket } from 'ws';
 import {
-  ensureSchema, pool, createAccount, findAccount, touchLogin, saveToken, accountForToken,
+  ensureSchema, pool, saveToken, accountForToken,
   listCharacters, getCharacter, createCharacter, deleteCharacter, closeOrphanSessions,
   pruneChatLogs, searchCharacters, characterCountsByRealm, moderationStatusForAccount, renameCharacter,
-  findCharacterReportTargetByName,
+  findCharacterReportTargetByName, upsertPrivyAccount,
 } from './db';
 import { cleanReportReason, createPlayerReport } from './moderation_db';
 import { resolveReportTarget } from './report_target';
-import { hashPassword, verifyPassword, newToken, validUsername, validPassword, validCharName } from './auth';
+import { newToken, validCharName } from './auth';
+import { verifyPrivyRequest, validSolanaAddress, verifiedPrivySolanaWallet } from './privy';
 import { json, readBody } from './http_util';
 import { rateLimited } from './ratelimit';
 import { handleAdminApi } from './admin';
@@ -138,32 +139,29 @@ function maybeCors(req: http.IncomingMessage, res: http.ServerResponse): void {
 async function handleApi(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   const url = (req.url ?? '').split('?')[0];
   try {
-    if (req.method === 'POST' && (url === '/api/register' || url === '/api/login') && rateLimited(req)) {
+    if (req.method === 'POST' && (url === '/api/register' || url === '/api/login' || url === '/api/privy-login') && rateLimited(req)) {
       return json(res, 429, { error: 'too many attempts — wait a minute and try again' });
     }
-    if (req.method === 'POST' && url === '/api/register') {
-      const body = await readBody(req);
-      if (!validUsername(body.username)) return json(res, 400, { error: 'username must be 3-24 chars (letters, digits, _)' });
-      if (!validPassword(body.password)) return json(res, 400, { error: 'password must be at least 6 chars' });
-      const existing = await findAccount(body.username);
-      if (existing) return json(res, 409, { error: 'username already taken' });
-      const account = await createAccount(body.username, await hashPassword(body.password));
-      const token = newToken();
-      await saveToken(token, account.id);
-      return json(res, 200, { token, username: account.username });
+    if (req.method === 'POST' && (url === '/api/register' || url === '/api/login')) {
+      return json(res, 410, { error: 'classic username/password login is disabled. Use Privy Solana login.' });
     }
-    if (req.method === 'POST' && url === '/api/login') {
+    if (req.method === 'POST' && url === '/api/privy-login') {
       const body = await readBody(req);
-      const account = typeof body.username === 'string' ? await findAccount(body.username) : null;
-      if (!account || !(await verifyPassword(String(body.password ?? ''), account.password_hash))) {
-        return json(res, 401, { error: 'invalid username or password' });
+      if (!validSolanaAddress(body.solanaWallet)) return json(res, 400, { error: 'invalid Solana wallet address' });
+      try {
+        const verified = await verifyPrivyRequest(req);
+        const walletBelongsToUser = await verifiedPrivySolanaWallet(verified.userId, body.solanaWallet);
+        if (!walletBelongsToUser) return json(res, 403, { error: 'Solana wallet is not linked to this Privy user' });
+        const account = await upsertPrivyAccount(verified.userId, body.solanaWallet);
+        const status = await moderationStatusForAccount(account.id);
+        if (status.locked) return json(res, 403, { error: status.message });
+        const token = newToken();
+        await saveToken(token, account.id);
+        return json(res, 200, { token, username: account.username, solanaWallet: account.solana_wallet ?? body.solanaWallet });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        return json(res, 401, { error: message || 'Privy authentication failed' });
       }
-      const status = await moderationStatusForAccount(account.id);
-      if (status.locked) return json(res, 403, { error: status.message });
-      await touchLogin(account.id);
-      const token = newToken();
-      await saveToken(token, account.id);
-      return json(res, 200, { token, username: account.username });
     }
     if (url === '/api/characters') {
       const accountId = await bearerActiveAccount(req, res);
@@ -416,7 +414,7 @@ async function main(): Promise<void> {
   game.start();
   server.listen(PORT, () => {
     console.log(`World of Claudecraft server listening on http://localhost:${PORT}`);
-    console.log(`  REST: /api/register /api/login /api/characters /api/status`);
+    console.log(`  REST: /api/privy-login /api/characters /api/status`);
     console.log(`  WS:   /ws, then first message {t:"auth",token,character}`);
   });
 

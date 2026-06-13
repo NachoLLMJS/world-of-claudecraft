@@ -47,6 +47,7 @@ export interface RealmDirectory {
 export class Api {
   token: string | null = null;
   username: string | null = null;
+  solanaWallet: string | null = null;
   realm: string | null = null;
   // base origin for realm-scoped calls (characters, search, ws). '' = the page
   // origin; set to another realm's origin when the player picks a realm
@@ -104,16 +105,18 @@ export class Api {
     return data;
   }
 
-  async register(username: string, password: string): Promise<void> {
-    const data = await this.post('/api/register', { username, password });
-    this.token = data.token;
-    this.username = data.username;
+  async register(_username: string, _password: string): Promise<void> {
+    throw new Error('Classic username/password registration is disabled. Use Privy Solana login.');
   }
 
-  async login(username: string, password: string): Promise<void> {
-    const data = await this.post('/api/login', { username, password });
-    this.token = data.token;
-    this.username = data.username;
+  async login(_username: string, _password: string): Promise<void> {
+    throw new Error('Classic username/password login is disabled. Use Privy Solana login.');
+  }
+
+  usePrivySession(session: { token: string; username: string; solanaWallet: string }): void {
+    this.token = session.token;
+    this.username = session.username;
+    this.solanaWallet = session.solanaWallet;
   }
 
   async characters(): Promise<CharacterSummary[]> {

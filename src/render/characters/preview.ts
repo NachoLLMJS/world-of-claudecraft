@@ -114,7 +114,18 @@ export class CharacterPreview {
     this.container = container;
     this.container.appendChild(this.canvas);
 
-    // Initial resize sync
+    // Sync once now and again after layout/transition. The start-screen panels
+    // fade between hidden/visible states, so the first measurement can be 0x0
+    // when entering Offline Mode directly or after returning from Privy login.
+    this.syncSize();
+    requestAnimationFrame(() => this.syncSize());
+    window.setTimeout(() => this.syncSize(), 250);
+
+    // Re-observe the new container
+    this.setupResizeObserver();
+  }
+
+  private syncSize(): void {
     const width = this.container.clientWidth;
     const height = this.container.clientHeight;
     if (width > 0 && height > 0) {
@@ -122,9 +133,6 @@ export class CharacterPreview {
       this.camera.aspect = width / height;
       this.camera.updateProjectionMatrix();
     }
-
-    // Re-observe the new container
-    this.setupResizeObserver();
   }
 
   private setupDragControls(): void {
@@ -174,13 +182,7 @@ export class CharacterPreview {
 
   private setupResizeObserver(): void {
     this.resizeObserver = new ResizeObserver(() => {
-      const width = this.container.clientWidth;
-      const height = this.container.clientHeight;
-      if (width > 0 && height > 0) {
-        this.renderer.setSize(width, height, false);
-        this.camera.aspect = width / height;
-        this.camera.updateProjectionMatrix();
-      }
+      this.syncSize();
     });
     this.resizeObserver.observe(this.container);
   }

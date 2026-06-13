@@ -8,11 +8,12 @@ import { audio } from './game/audio';
 import { music } from './game/music';
 import { handlePickedEntity } from './game/interactions';
 import { Api, ClientWorld, CharacterSummary } from './net/online';
+import { mountPrivyRealmLogin } from './net/privy_realm_auth';
 import type { IWorld } from './world_api';
 import { assetsReady } from './render/assets/preload';
 import { CharacterPreview } from './render/characters';
 import { DT, INTERACT_RANGE, PlayerClass, dist2d } from './sim/types';
-import { togglePasswordVisibility, syncInputAriaState, validateForm, handleKeyboardActivation, validateCharacterName } from './ui/auth_utils';
+import { handleKeyboardActivation, validateCharacterName } from './ui/auth_utils';
 import { CLASSES, ABILITIES } from './sim/content/classes';
 import { iconDataUrl } from './ui/icons';
 
@@ -1052,6 +1053,9 @@ function wireStartScreens(): void {
       warriorCard.classList.add('sel');
       warriorCard.setAttribute('aria-pressed', 'true');
       renderClassDetails('offline-class-details', 'warrior');
+      updatePreviewContainer('#offline-select');
+      requestAnimationFrame(() => updatePreviewContainer('#offline-select'));
+      window.setTimeout(() => updatePreviewContainer('#offline-select'), 250);
       btnStartOffline.removeAttribute('disabled');
     }
   };
@@ -1175,90 +1179,26 @@ function wireStartScreens(): void {
   };
   offlineBackBtn.addEventListener('click', handleOfflineBack);
 
-  // login
-  const doAuth = async (mode: 'login' | 'register') => {
-    const username = ($('#login-user') as unknown as HTMLInputElement).value.trim();
-    const password = ($('#login-pass') as unknown as HTMLInputElement).value;
-    loginError('');
-    try {
-      if (mode === 'login') await api.login(username, password);
-      else await api.register(username, password);
-      $('#charselect-user').textContent = api.username ?? '';
-      await enterRealmFlow();
-    } catch (err: any) {
-      loginError(err.message);
-    }
-  };
-
+  // login: Privy + Solana wallet only. The old username/password UI is not
+  // mounted anymore; server endpoints are also disabled so hiding the form is
+  // not the only security boundary.
   const loginForm = $('#login-panel') as HTMLFormElement;
-  const userInput = $('#login-user') as HTMLInputElement;
-  const passInput = $('#login-pass') as HTMLInputElement;
-  const togglePassBtn = $('#btn-toggle-password') as HTMLButtonElement;
-
-  // Wire password visibility toggle
-  togglePassBtn.addEventListener('click', () => {
-    togglePasswordVisibility(passInput, togglePassBtn);
+  const privyMount = $('#privy-login-mount');
+  mountPrivyRealmLogin(privyMount, {
+    onAuthenticated: async (session) => {
+      api.usePrivySession(session);
+      $('#charselect-user').textContent = `${api.username ?? ''} (${session.solanaWallet.slice(0, 6)}...${session.solanaWallet.slice(-4)})`;
+      await enterRealmFlow();
+    },
+    onError: (message) => loginError(message),
   });
 
-  // Sync aria-invalid and error elements dynamically on interaction
-  [userInput, passInput].forEach((input) => {
-    input.addEventListener('blur', () => {
-      const isValid = syncInputAriaState(input);
-      input.classList.toggle('user-invalid-fallback', !isValid);
-    });
-    input.addEventListener('input', () => {
-      // Clear general login error on typing
-      loginError('');
-      if (input.classList.contains('user-invalid-fallback') || input.hasAttribute('aria-invalid')) {
-        const isValid = syncInputAriaState(input);
-        input.classList.toggle('user-invalid-fallback', !isValid);
-        
-        // Update error display element
-        const errorEl = $('#' + input.id + '-error');
-        if (errorEl) {
-          errorEl.style.display = isValid ? 'none' : 'block';
-        }
-      }
-    });
-  });
-
-  // Prevent default submission and perform validation
   loginForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    if (validateForm(loginForm)) {
-      void doAuth('login');
-    }
-  });
-
-  // Custom keydown helper for compatibility with edge cases / legacy scripts
-  passInput.addEventListener('keydown', (e) => {
-    if ((e as KeyboardEvent).key === 'Enter') {
-      e.preventDefault();
-      loginForm.requestSubmit();
-    }
-  });
-
-  // Legacy clicks of Login/Register buttons
-  $('#btn-login').addEventListener('click', (e) => {
-    // Let the form submit handle it if it was clicked, but prevent default click just in case
-  });
-
-  $('#btn-register').addEventListener('click', (e) => {
-    e.preventDefault();
-    if (validateForm(loginForm)) {
-      void doAuth('register');
-    }
   });
 
   $('#btn-login-back').addEventListener('click', (e) => {
     e.preventDefault();
-    // Clear validation state on back
-    [userInput, passInput].forEach((input) => {
-      input.classList.remove('user-invalid-fallback');
-      input.removeAttribute('aria-invalid');
-      const errEl = $('#' + input.id + '-error');
-      if (errEl) errEl.style.display = 'none';
-    });
     loginError('');
     show('#mode-select');
   });
