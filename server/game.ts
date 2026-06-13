@@ -169,12 +169,6 @@ function isStealthed(e: Entity): boolean {
   return e.auras.some((a) => a.kind === 'stealth');
 }
 
-function canObserveEntity(viewer: Entity, e: Entity, d2: number): boolean {
-  if (e.kind !== 'player' || !isStealthed(e)) return true;
-  const radius = stealthDetectionRadius(viewer, e, INTEREST_RADIUS);
-  return d2 <= radius * radius;
-}
-
 // full rate close up and for anything the viewer is fighting; mid range
 // updates every other tick, far entities every fourth. Measured against
 // the per-session last-sent tick rather than a tick-parity stagger: when
@@ -579,7 +573,7 @@ export class GameServer {
       const present = new Set<number>();
       this.sim.grid.forEachInRadius(p.pos.x, p.pos.z, INTEREST_QUERY_RADIUS, (e, d2) => {
         if (e.id === session.pid) return;
-        if (!canObserveEntity(p, e, d2)) return;
+        if (!this.canObserveEntity(p, e, d2)) return;
         const known = session.sentEnts.get(e.id);
         // the viewer's current target stays in interest to the widest drop
         // radius so its unit frame doesn't vanish mid-chase
@@ -628,6 +622,17 @@ export class GameServer {
       this.lastWireSweepTick = tick;
       this.sweepWireCache();
     }
+  }
+
+  private canObserveEntity(viewer: Entity, e: Entity, d2: number): boolean {
+    if (e.kind !== 'player' || !isStealthed(e)) return true;
+    const party = this.sim.partyOf(viewer.id);
+    const sameParty = party?.members.includes(e.id) ?? false;
+    const duel = this.sim.duelFor(viewer.id);
+    const duelingEachOther = duel !== null && (duel.a === e.id || duel.b === e.id);
+    if (sameParty && !duelingEachOther) return true;
+    const radius = stealthDetectionRadius(viewer, e, INTEREST_RADIUS);
+    return d2 <= radius * radius;
   }
 
   // each entity is serialized at most once per tick, shared by every

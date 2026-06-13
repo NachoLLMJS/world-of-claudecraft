@@ -21,6 +21,7 @@ import { buildTerrain, TerrainView } from './terrain';
 import { buildWater, WaterView } from './water';
 import { buildClouds, buildSky, SkyView } from './sky';
 import { buildFoliage, FoliageView } from './foliage';
+import { shouldRenderStealthGhost } from './stealth';
 
 const NAMEPLATE_RANGE = 55;
 // Entities further than this from the player are hidden entirely: their rigs
@@ -817,7 +818,7 @@ export class Renderer {
       if (v.bearVisual) v.bearVisual.root.visible = bear;
       const active = polyed && v.sheepVisual ? v.sheepVisual
         : bear && v.bearVisual ? v.bearVisual : v.visual;
-      const ghost = e.id !== this.sim.playerId && e.kind === 'player' && stealthed;
+      const ghost = shouldRenderStealthGhost(this.sim.playerId, e);
       active.setGhost(ghost);
       v.visual.root.visible = active === v.visual;
       // distant rigs swap to the single-draw baked idle-pose mesh
