@@ -57,10 +57,12 @@
       "dist/**",
       "electron/**",
       "build/icon.png",
+      "build/icon.ico",
       "package.json"
     ],
     "directories": {
-      "buildResources": "build"
+      "buildResources": "build",
+      "output": "release"
     },
     "mac": {
       "category": "public.app-category.games",
@@ -71,6 +73,7 @@
       ]
     },
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         "nsis"
       ]

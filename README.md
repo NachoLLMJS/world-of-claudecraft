@@ -136,8 +136,8 @@ npm run dev        # open http://localhost:5173 -> Play Offline
 ```bash
 npm install
 npm run electron:dev     # Vite + Electron during development
-npm run electron:pack    # build an unpacked desktop app in dist/
-npm run electron:build   # build platform installers/packages in dist/
+npm run electron:pack    # build an unpacked desktop app in release/
+npm run electron:build   # build platform installers/packages in release/
 ```
 
 The Electron app packages the browser client and is ready for offline play.
