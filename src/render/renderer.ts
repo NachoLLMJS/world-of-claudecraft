@@ -21,6 +21,7 @@ import { buildTerrain, TerrainView } from './terrain';
 import { buildWater, WaterView } from './water';
 import { buildClouds, buildSky, SkyView } from './sky';
 import { buildFoliage, FoliageView } from './foliage';
+import { FarmsteadView } from './farmstead';
 import { shouldRenderStealthGhost } from './stealth';
 import { loadGltf } from './assets/loader';
 
@@ -133,6 +134,7 @@ export class Renderer {
   private flames: THREE.Mesh[];
   private fireLights: THREE.PointLight[];
   private propsView!: { update(camX: number, camZ: number, fogFar: number): void };
+  private farmsteadView!: FarmsteadView;
   private lightRank: { light: THREE.PointLight; d2: number; worldPos: THREE.Vector3 }[] = [];
   private doomedIds: number[] = [];
   private dungeons: DungeonInteriors | null = null;
@@ -314,6 +316,7 @@ export class Renderer {
     this.flames = props.flames;
     this.fireLights = props.fireLights;
     this.propsView = props;
+    this.farmsteadView = new FarmsteadView(this.scene, this.sim, this.sim.cfg.seed);
 
     // selection ring
     const ringGeo = new THREE.RingGeometry(0.9, 1.15, 32);
@@ -925,6 +928,7 @@ export class Renderer {
     const fogFar = (this.scene.fog as THREE.Fog).far;
     this.terrainView.update(this.camera.position.x, this.camera.position.z, fogFar);
     this.propsView.update(this.camera.position.x, this.camera.position.z, fogFar);
+    this.farmsteadView.update();
     this.foliage.setChoppedTrees(new Set(this.sim.choppedTrees.keys()));
     this.foliage.update(p.pos.x, p.pos.z, this.camera.position.x, this.camera.position.z, fogFar);
 

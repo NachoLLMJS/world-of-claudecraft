@@ -156,7 +156,7 @@ export const ZONE1_NPCS: Record<string, NpcDef> = {
   trader_wilkes: {
     id: 'trader_wilkes', name: 'Trader Wilkes', title: 'Provisioner',
     pos: { x: -7, z: 3 }, facing: Math.PI / 2, color: 0x1e8449,
-    questIds: ['q_boars', 'q_supplies'],
+    questIds: ['q_boars', 'q_lumber_for_a_home', 'q_supplies'],
     vendorItems: ['baked_bread', 'spring_water', 'roasted_boar', 'tough_jerky'],
     greeting: 'Fresh bread, clean water, fair prices. What can I get you?',
   },
@@ -237,6 +237,15 @@ export const ZONE1_QUESTS: Record<string, QuestDef> = {
     completionText: 'Ah, fine bristly hides! These will fetch a good price.',
     objectives: [{ type: 'collect', itemId: 'boar_hide', count: 5, label: 'Bristly Boar Hide' }],
     xpReward: 350, copperReward: 120, itemRewards: {},
+  },
+  q_lumber_for_a_home: {
+    id: 'q_lumber_for_a_home', name: 'Lumber for a Home',
+    giverNpcId: 'trader_wilkes', turnInNpcId: 'trader_wilkes',
+    text: 'If you want a place of your own beyond Eastbrook\'s walls, you need timber first. Chop 10 trees and I will sign over a small farmstead deed. Plant it outside the castle walls, where there is room to work.',
+    completionText: 'That is good straight lumber. Here is your deed — use it outside the walls and the land is yours.',
+    objectives: [{ type: 'chop', count: 10, label: 'Trees chopped' }],
+    xpReward: 250, copperReward: 0,
+    itemRewards: { warrior: 'farmstead_deed', mage: 'farmstead_deed', rogue: 'farmstead_deed' },
   },
   q_spiders: {
     id: 'q_spiders', name: 'Webwood Menace',
@@ -379,7 +388,7 @@ export const ZONE1_QUESTS: Record<string, QuestDef> = {
 };
 
 export const ZONE1_QUEST_ORDER = [
-  'q_wolves', 'q_boars', 'q_spiders', 'q_greyjaw', 'q_murlocs',
+  'q_wolves', 'q_boars', 'q_lumber_for_a_home', 'q_spiders', 'q_greyjaw', 'q_murlocs',
   'q_supplies', 'q_bandits', 'q_mine', 'q_bones', 'q_ringleader',
   'q_whispers', 'q_names_of_the_dead', 'q_silence_the_call',
   'q_rite', 'q_sexton', 'q_hollow', 'q_gravecallers_trail',

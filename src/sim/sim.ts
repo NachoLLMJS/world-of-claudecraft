@@ -17,7 +17,7 @@ import { generateDecorations, groundHeight, isVisibleTreeDecoration, WATER_LEVEL
 import {
   AbilityDef, AbilityEffect, Aura, CAST_PUSHBACK_SEC, CHANNEL_PUSHBACK_FRACTION, CONSUME_DURATION,
   CONSUME_TICKS, DT, Entity, EquipSlot, GCD,
-  INTERACT_RANGE, InvSlot, MELEE_RANGE, MAX_LEVEL,
+  FarmPlot, INTERACT_RANGE, InvSlot, MELEE_RANGE, MAX_LEVEL,
   MoveInput, PlayerClass, QuestProgress, QuestState, RUN_SPEED, SimConfig, SimEvent, TURN_SPEED, Vec3,
   angleTo, armorReduction, dist2d, emptyMoveInput, isConsuming, meleeMissChance, mobXpValue, normAngle,
   rageFromDealing, rageFromTaking, spellHitChance, xpForLevel,
@@ -61,6 +61,11 @@ const PET_GROWL_INTERVAL = 8; // controlled pets can tank by forcing attention
 const TREE_CHOP_RANGE = 4.5;
 const TREE_CHOP_TIME = 5;
 const TREE_RESPAWN = 180;
+const FARM_PICKUP_RANGE = 4.0;
+const FARM_WALL_EXCLUSION_RADIUS = 55;
+const FARM_PLOT_RADIUS = 5;
+const FARM_CLEARANCE = FARM_PLOT_RADIUS * 2;
+const FARM_ENEMY_EXCLUSION_RADIUS = 16;
 
 function treeKey(x: number, z: number): string {
   return `${Math.round(x * 10)}:${Math.round(z * 10)}`;
@@ -153,6 +158,7 @@ export interface CharacterState {
   facing: number;
   equipment: PlayerEquipment;
   inventory: InvSlot[];
+  farms: FarmPlot[];
   questLog: { questId: string; counts: number[]; state: 'active' | 'ready' | 'done' }[];
   questsDone: string[];
 }
@@ -210,6 +216,7 @@ export class Sim {
   events: SimEvent[] = [];
   readonly harvestableTrees: { key: string; x: number; z: number }[];
   choppedTrees = new Map<string, number>();
+  farms: FarmPlot[] = [];
   // social systems
   parties = new Map<number, Party>();
   partyByPid = new Map<number, number>(); // pid -> party id
@@ -358,6 +365,7 @@ export class Sim {
       meta.copper = s.copper;
       meta.equipment = { ...s.equipment };
       meta.inventory = s.inventory.map((i) => ({ ...i }));
+      this.farms.push(...(s.farms ?? []).map((f) => ({ ...f, ownerPid: player.id })));
       for (const q of s.questLog) {
         if (q.state !== 'done') meta.questLog.set(q.questId, { questId: q.questId, counts: [...q.counts], state: q.state });
       }
@@ -432,6 +440,7 @@ export class Sim {
       facing: e.facing,
       equipment: { ...meta.equipment },
       inventory: meta.inventory.map((i) => ({ ...i })),
+      farms: this.farms.filter((f) => f.ownerPid === pid).map((f) => ({ ...f, ownerPid: undefined })),
       questLog: [...meta.questLog.values()].map((q) => ({ questId: q.questId, counts: [...q.counts], state: q.state })),
       questsDone: [...meta.questsDone],
     };
@@ -913,6 +922,7 @@ export class Sim {
     p.choppingTreeKey = null;
     this.choppedTrees.set(key, TREE_RESPAWN);
     this.addItem('harvested_wood', 1, meta.entityId);
+    this.onTreeChoppedForQuests(meta);
     this.emit({ type: 'treeChopStop', entityId: p.id, treeKey: key, success: true });
     this.emit({ type: 'treeState', treeKey: key, chopped: true, respawnSeconds: TREE_RESPAWN });
   }
@@ -2760,7 +2770,9 @@ export class Sim {
     const { meta, e: p } = r;
     const def = ITEMS[itemId];
     if (!def || this.countItem(itemId, meta.entityId) <= 0 || p.dead) return;
-    if (def.kind === 'food' || def.kind === 'drink') {
+    if (itemId === 'farmstead_deed') {
+      this.placeFarmstead(meta.entityId);
+    } else if (def.kind === 'food' || def.kind === 'drink') {
       if (p.inCombat) { this.error(meta.entityId, "You can't do that while in combat."); return; }
       if (this.isSwimming(p)) { this.error(meta.entityId, "You can't do that while swimming."); return; }
       this.removeItem(itemId, 1, meta.entityId);
@@ -2778,6 +2790,75 @@ export class Sim {
     } else if (def.kind === 'weapon' || def.kind === 'armor') {
       this.equipItem(itemId, meta.entityId);
     }
+  }
+
+  private placeFarmstead(pid: number): void {
+    const r = this.resolve(pid);
+    if (!r) return;
+    const { meta, e: p } = r;
+    if (this.countItem('farmstead_deed', meta.entityId) <= 0) return;
+    if (p.inCombat) { this.error(meta.entityId, "You can't do that while in combat."); return; }
+    if (this.isSwimming(p)) { this.error(meta.entityId, "You can't place a farm in water."); return; }
+    if (Math.hypot(p.pos.x, p.pos.z) < FARM_WALL_EXCLUSION_RADIUS) {
+      this.error(meta.entityId, 'Place your farm outside the castle walls.');
+      return;
+    }
+    for (const e of this.entities.values()) {
+      if (e.kind !== 'mob' || e.dead) continue;
+      if (dist2d(p.pos, e.pos) < FARM_ENEMY_EXCLUSION_RADIUS) {
+        this.error(meta.entityId, 'Too close to enemies. Find a safer place for your farm.');
+        return;
+      }
+    }
+    for (const f of this.farms) {
+      if (Math.hypot(f.x - p.pos.x, f.z - p.pos.z) < FARM_CLEARANCE) {
+        this.error(meta.entityId, 'Too close to another farm. Each farm needs its own space.');
+        return;
+      }
+    }
+    const farm: FarmPlot = {
+      id: `farm_${Date.now().toString(36)}_${meta.entityId.toString(36)}`,
+      ownerPid: meta.entityId,
+      x: p.pos.x,
+      z: p.pos.z,
+      facing: p.facing,
+    };
+    this.removeItem('farmstead_deed', 1, meta.entityId);
+    this.farms.push(farm);
+    this.emit({ type: 'farmPlaced', farm });
+    this.emit({ type: 'log', text: 'Farmstead placed. This farm belongs to you.', color: '#8f8', pid: meta.entityId });
+  }
+
+  private nearestOwnedFarm(p: Entity): FarmPlot | null {
+    let best: FarmPlot | null = null;
+    let bestD = FARM_PICKUP_RANGE;
+    for (const f of this.farms) {
+      if (f.ownerPid !== undefined && f.ownerPid !== p.id) continue;
+      const d = Math.hypot(f.x - p.pos.x, f.z - p.pos.z);
+      if (d <= bestD) { bestD = d; best = f; }
+    }
+    return best;
+  }
+
+  pickUpFarm(farmId: string, pid?: number): void {
+    const r = this.resolve(pid);
+    if (!r) return;
+    const { meta, e: p } = r;
+    if (p.dead) return;
+    const farm = this.farms.find((f) => f.id === farmId);
+    if (!farm) return;
+    if (farm.ownerPid !== undefined && farm.ownerPid !== meta.entityId) {
+      this.error(meta.entityId, "That isn't your farm.");
+      return;
+    }
+    if (Math.hypot(farm.x - p.pos.x, farm.z - p.pos.z) > FARM_PICKUP_RANGE) {
+      this.error(meta.entityId, 'Too far away.');
+      return;
+    }
+    this.farms = this.farms.filter((f) => f.id !== farm.id);
+    this.addItem('farmstead_deed', 1, meta.entityId);
+    this.emit({ type: 'farmRemoved', farmId: farm.id });
+    this.emit({ type: 'log', text: 'Farm picked up. The deed is back in your bag.', color: '#8f8', pid: meta.entityId });
   }
 
   buyItem(npcId: number, itemId: string, pid?: number): void {
@@ -2912,6 +2993,8 @@ export class Sim {
       return;
     }
     if (npc) { this.talkToNpc(npc.id, p.id); return; }
+    const farm = this.nearestOwnedFarm(p);
+    if (farm) { this.pickUpFarm(farm.id, p.id); return; }
     this.chopNearestTree(p.id);
   }
 
@@ -3024,6 +3107,23 @@ export class Sim {
             changed = true;
             this.emit({ type: 'questProgress', questId: qp.questId, text: `${obj.label}: ${have}/${obj.count}`, pid: meta.entityId });
           }
+        }
+      });
+      if (changed) this.checkQuestReady(qp, meta);
+    }
+  }
+
+  private onTreeChoppedForQuests(meta: PlayerMeta): void {
+    for (const qp of meta.questLog.values()) {
+      if (qp.state !== 'active') continue;
+      const quest = QUESTS[qp.questId];
+      let changed = false;
+      quest.objectives.forEach((obj, i) => {
+        if (obj.type === 'chop' && qp.counts[i] < obj.count) {
+          qp.counts[i]++;
+          changed = true;
+          meta.counters.questProgress++;
+          this.emit({ type: 'questProgress', questId: qp.questId, text: `${obj.label}: ${qp.counts[i]}/${obj.count}`, pid: meta.entityId });
         }
       });
       if (changed) this.checkQuestReady(qp, meta);

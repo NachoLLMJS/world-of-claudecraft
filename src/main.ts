@@ -191,11 +191,17 @@ async function startGame(world: IWorld, offlineSim: Sim | null, online: ClientWo
     let bestCorpse: number | null = null, bestCorpseD = INTERACT_RANGE;
     let bestObj: number | null = null, bestObjD = INTERACT_RANGE;
     let bestNpc: number | null = null, bestNpcD = INTERACT_RANGE + 1;
+    let bestFarm: string | null = null, bestFarmD = 4.0;
     for (const e of world.entities.values()) {
       const d = dist2d(p.pos, e.pos);
       if (e.kind === 'mob' && e.lootable && d < bestCorpseD) { bestCorpse = e.id; bestCorpseD = d; }
       if (e.kind === 'object' && e.lootable && d < bestObjD) { bestObj = e.id; bestObjD = d; }
       if (e.kind === 'npc' && d < bestNpcD) { bestNpc = e.id; bestNpcD = d; }
+    }
+    for (const f of world.farms) {
+      if (f.ownerPid !== undefined && f.ownerPid !== p.id) continue;
+      const d = Math.hypot(f.x - p.pos.x, f.z - p.pos.z);
+      if (d < bestFarmD) { bestFarm = f.id; bestFarmD = d; }
     }
     if (bestCorpse !== null) { world.lootCorpse(bestCorpse); return; }
     if (bestObj !== null) {
@@ -206,6 +212,7 @@ async function startGame(world: IWorld, offlineSim: Sim | null, online: ClientWo
       return;
     }
     if (bestNpc !== null) { hud.openQuestDialog(bestNpc); return; }
+    if (bestFarm !== null) { world.pickUpFarm(bestFarm); return; }
     if (world.chopNearestTree()) return;
     hud.showError('Nothing to interact with.');
   }

@@ -149,6 +149,8 @@ function dynamicFields(e: Entity): Record<string, unknown> {
     out.chop = e.choppingTreeKey;
     out.chopX = round2(e.choppingTreeX);
     out.chopZ = round2(e.choppingTreeZ);
+    out.castRem = round2(e.castRemaining);
+    out.castTot = round2(e.castTotal);
   }
   if (e.sitting || e.eating || e.drinking) out.sit = 1;
   if (e.aggroTargetId !== null) out.aggro = e.aggroTargetId;
@@ -600,6 +602,7 @@ export class GameServer {
       case 'chop_tree': sim.chopNearestTree(pid); break;
       case 'loot': if (typeof msg.id === 'number') sim.lootCorpse(msg.id, pid); break;
       case 'pickup': if (typeof msg.id === 'number') sim.pickUpObject(msg.id, pid); break;
+      case 'pickup_farm': if (typeof msg.id === 'string') sim.pickUpFarm(msg.id, pid); break;
       case 'accept': if (typeof msg.quest === 'string') { sim.acceptQuest(msg.quest, pid); this.resyncQuests(session); } break;
       case 'turnin': if (typeof msg.quest === 'string') { sim.turnInQuest(msg.quest, pid); this.resyncQuests(session); } break;
       case 'abandon': if (typeof msg.quest === 'string') { sim.abandonQuest(msg.quest, pid); this.resyncQuests(session); } break;
@@ -878,6 +881,7 @@ export class GameServer {
     maybe('equip', meta.equipment);
     maybe('qlog', [...meta.questLog.values()]);
     maybe('qdone', [...meta.questsDone]);
+    maybe('farms', this.sim.farms);
     maybe('cds', Object.fromEntries([...p.cooldowns.entries()].map(([k, v]) => [k, round2(v)])));
     maybe('stats', p.stats);
     maybe('weapon', p.weapon);

@@ -91,6 +91,14 @@ export interface InvSlot {
   count: number;
 }
 
+export interface FarmPlot {
+  id: string;
+  ownerPid?: number;
+  x: number;
+  z: number;
+  facing: number;
+}
+
 export interface LootEntry {
   itemId?: string;
   copper?: number;
@@ -310,7 +318,7 @@ export function emptyZoneProps(): ZonePropsDef {
 }
 
 export interface QuestObjective {
-  type: 'kill' | 'collect';
+  type: 'kill' | 'collect' | 'chop';
   targetMobId?: string; // for kill
   itemId?: string; // for collect
   count: number;
@@ -480,6 +488,8 @@ export type SimEvent = { pid?: number } & (
   | { type: 'treeChopStart'; entityId: number; treeKey: string; x: number; z: number; time: number }
   | { type: 'treeChopStop'; entityId: number; treeKey: string; success: boolean }
   | { type: 'treeState'; treeKey: string; chopped: boolean; respawnSeconds?: number }
+  | { type: 'farmPlaced'; farm: FarmPlot }
+  | { type: 'farmRemoved'; farmId: string }
   | { type: 'comboPoint'; points: number }
   | { type: 'playerDeath' }
   | { type: 'respawn' }

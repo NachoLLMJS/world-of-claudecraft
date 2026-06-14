@@ -500,6 +500,7 @@ export class Hud {
 
     // cast bar
     const cb = $('#castbar');
+    cb.classList.remove('channel', 'chopping');
     if (p.castingAbility) {
       cb.style.display = 'block';
       cb.classList.toggle('channel', p.channeling);
@@ -510,8 +511,8 @@ export class Hud {
       (cb.querySelector('.label') as HTMLElement).textContent = ABILITIES[p.castingAbility].name;
     } else if (p.choppingTreeKey) {
       cb.style.display = 'block';
-      cb.classList.add('channel');
-      const frac = 1 - p.castRemaining / Math.max(0.01, p.castTotal);
+      cb.classList.add('chopping');
+      const frac = Math.max(0, Math.min(1, 1 - p.castRemaining / Math.max(0.01, p.castTotal)));
       (cb.querySelector('.fill') as HTMLElement).style.width = `${(frac * 100).toFixed(1)}%`;
       (cb.querySelector('.label') as HTMLElement).textContent = 'Chopping wood…';
     } else if (p.eating || p.drinking) {
@@ -648,6 +649,18 @@ export class Hud {
       el.style.display = 'none';
       return;
     }
+    let bestFarmD2 = 4.0 * 4.0;
+    for (const farm of this.sim.farms) {
+      if (farm.ownerPid !== undefined && farm.ownerPid !== p.id) continue;
+      const dx = farm.x - p.pos.x;
+      const dz = farm.z - p.pos.z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 <= bestFarmD2) {
+        el.innerHTML = '<span class="key">F</span> Pick up farm';
+        el.style.display = 'block';
+        return;
+      }
+    }
     let near = false;
     let bestD2 = TREE_PROMPT_RANGE * TREE_PROMPT_RANGE;
     for (const tree of this.harvestableTrees) {
@@ -657,6 +670,7 @@ export class Hud {
       const d2 = dx * dx + dz * dz;
       if (d2 <= bestD2) { bestD2 = d2; near = true; }
     }
+    if (near) el.innerHTML = '<span class="key">F</span> Chop tree';
     el.style.display = near ? 'block' : 'none';
   }
 

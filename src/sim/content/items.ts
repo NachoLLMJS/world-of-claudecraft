@@ -188,4 +188,7 @@ export const BASE_ITEMS: Record<string, ItemDef> = {
   bone_fragments: { id: 'bone_fragments', name: 'Bone Fragments', kind: 'junk', quality: 'poor', sellValue: 7 },
   linen_scrap: { id: 'linen_scrap', name: 'Linen Scrap', kind: 'junk', quality: 'poor', sellValue: 3 },
   harvested_wood: { id: 'harvested_wood', name: 'Wood', kind: 'junk', quality: 'common', sellValue: 1 },
+  farmstead_deed: {
+    id: 'farmstead_deed', name: 'Farmstead Deed', kind: 'quest', quality: 'uncommon', sellValue: 0,
+  },
 };

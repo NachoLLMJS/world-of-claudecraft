@@ -1,4 +1,4 @@
-import type { Entity, EquipSlot, InvSlot, MoveInput, PlayerClass, QuestProgress, QuestState, ResourceType } from './sim/types';
+import type { Entity, EquipSlot, FarmPlot, InvSlot, MoveInput, PlayerClass, QuestProgress, QuestState, ResourceType } from './sim/types';
 import type { ResolvedAbility } from './sim/sim';
 
 export interface PartyMemberInfo {
@@ -106,8 +106,10 @@ export interface IWorld {
   interact(): void;
   chopNearestTree(): boolean;
   choppedTrees: Map<string, number>;
+  farms: FarmPlot[];
   lootCorpse(id: number): void;
   pickUpObject(id: number): void;
+  pickUpFarm(id: string): void;
   acceptQuest(questId: string): void;
   turnInQuest(questId: string): void;
   abandonQuest(questId: string): void;

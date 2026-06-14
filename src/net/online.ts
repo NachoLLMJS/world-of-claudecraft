@@ -3,7 +3,7 @@
 import { NPCS, QUESTS, abilitiesKnownAt } from '../sim/data';
 import { computeQuestState, ResolvedAbility } from '../sim/sim';
 import {
-  Entity, EquipSlot, InvSlot, MoveInput, PlayerClass, QuestProgress, QuestState, SimEvent,
+  Entity, EquipSlot, FarmPlot, InvSlot, MoveInput, PlayerClass, QuestProgress, QuestState, SimEvent,
   emptyMoveInput,
 } from '../sim/types';
 import type { CharacterSearchResult, DuelInfo, IWorld, PartyInfo, SocialInfo, TradeInfo } from '../world_api';
@@ -186,6 +186,7 @@ export class ClientWorld implements IWorld {
   moveInput: MoveInput = emptyMoveInput();
   inventory: InvSlot[] = [];
   choppedTrees = new Map<string, number>();
+  farms: FarmPlot[] = [];
   equipment: Partial<Record<EquipSlot, string>> = {};
   copper = 0;
   xp = 0;
@@ -334,6 +335,12 @@ export class ClientWorld implements IWorld {
     if (ev.type === 'treeState') {
       if (ev.chopped) this.choppedTrees.set(ev.treeKey, ev.respawnSeconds ?? 180);
       else this.choppedTrees.delete(ev.treeKey);
+    } else if (ev.type === 'farmPlaced') {
+      const i = this.farms.findIndex((f) => f.id === ev.farm.id);
+      if (i >= 0) this.farms[i] = ev.farm;
+      else this.farms.push(ev.farm);
+    } else if (ev.type === 'farmRemoved') {
+      this.farms = this.farms.filter((f) => f.id !== ev.farmId);
     } else if (ev.type === 'treeChopStart') {
       const e = this.entities.get(ev.entityId);
       if (e) {
@@ -354,6 +361,7 @@ export class ClientWorld implements IWorld {
   }
 
   private updateChoppedTreeTimers(worldTime: number): void {
+    if (!this.choppedTrees) this.choppedTrees = new Map();
     if (this.lastTreeTimerSync <= 0) {
       this.lastTreeTimerSync = worldTime;
       return;
@@ -517,6 +525,7 @@ export class ClientWorld implements IWorld {
       if (s.equip !== undefined) this.equipment = s.equip;
       if (s.qlog !== undefined) this.questLog = new Map((s.qlog as QuestProgress[]).map((q) => [q.questId, q]));
       if (s.qdone !== undefined) this.questsDone = new Set(s.qdone);
+      if (s.farms !== undefined) this.farms = s.farms;
       this.known = abilitiesKnownAt(this.cfg.playerClass, e.level);
       if (s.party !== undefined) this.partyInfo = s.party;
       if (s.trade !== undefined) this.tradeInfo = s.trade;
@@ -589,6 +598,9 @@ export class ClientWorld implements IWorld {
   }
   pickUpObject(id: number): void {
     this.cmd({ cmd: 'pickup', id });
+  }
+  pickUpFarm(id: string): void {
+    this.cmd({ cmd: 'pickup_farm', id });
   }
   // Quest commands update local state optimistically so the dialog can't be
   // re-used in the window before the next server snapshot lands. The server
