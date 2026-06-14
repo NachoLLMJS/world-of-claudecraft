@@ -36,8 +36,17 @@ const TERRAIN_TEX: Record<string, THREE.Texture> = {};
 const ALBEDO_ANISOTROPY = 8;
 const NORMAL_ANISOTROPY = 4;
 
+function terrainStyle(): 'classic' | 'freebies' | 'materials' {
+  if (typeof location === 'undefined') return 'materials';
+  const style = new URLSearchParams(location.search).get('terrain');
+  if (style === 'classic' || style === 'freebies') return style;
+  // Default trial now uses the other downloaded pack: Materials_Stylized_01.
+  return 'materials';
+}
+
 function kickTerrainTex(key: string, file: string, srgb: boolean): void {
-  registerPreload(loadTexture(`/textures/terrain/${file}`, { srgb, repeat: true }).then((tex) => {
+  const path = file.startsWith('/') ? file : `/textures/terrain/${file}`;
+  registerPreload(loadTexture(path, { srgb, repeat: true }).then((tex) => {
     tex.anisotropy = srgb ? ALBEDO_ANISOTROPY : NORMAL_ANISOTROPY;
     TERRAIN_TEX[key] = tex;
     return tex;
@@ -45,18 +54,30 @@ function kickTerrainTex(key: string, file: string, srgb: boolean): void {
 }
 
 // ~15MB of JPEGs — skip when the URL already forces the Lambert tier (an
-// auto-detected low tier still fetches them; the URL guess can't know yet)
+// auto-detected low tier still fetches them; the URL guess can't know yet).
+// Terrain compare modes:
+//   default / ?terrain=materials -> user's Materials_Stylized_01 pack
+//   ?terrain=freebies            -> previous ForestPath/IcyRocks trial
+//   ?terrain=classic             -> original ambientCG-style terrain
 if (GFX.terrainSplat) {
-  kickTerrainTex('grassC', 'Grass001_Color.jpg', true);
-  kickTerrainTex('grassN', 'Grass001_NormalGL.jpg', false);
-  kickTerrainTex('dirtC', 'Ground048_Color.jpg', true);
-  kickTerrainTex('dirtN', 'Ground048_NormalGL.jpg', false);
-  kickTerrainTex('rockC', 'Rock051_Color.jpg', true);
-  kickTerrainTex('rockN', 'Rock051_NormalGL.jpg', false);
-  kickTerrainTex('sandC', 'Ground080_Color.jpg', true);
-  kickTerrainTex('sandN', 'Ground080_NormalGL.jpg', false);
-  kickTerrainTex('mudC', 'Ground071_Color.jpg', true); // marsh wet mud (dirt variant)
-  kickTerrainTex('snowC', 'Snow010A_Color.jpg', true);
+  const style = terrainStyle();
+  const materials = style === 'materials';
+  const freebies = style === 'freebies';
+
+  // Materials_Stylized_01 is mostly stone/plaster/wood, not grass. For this
+  // explicit visual test we intentionally make the base ground cobbly/painted
+  // so the change is obvious; if the mood works, we should later source a real
+  // hand-painted grass layer for the grass slot.
+  kickTerrainTex('grassC', materials ? '/textures/terrain/stylized/Stone_05_Color.jpg' : freebies ? '/textures/terrain/stylized/ForestPath_Color.jpg' : 'Grass001_Color.jpg', true);
+  kickTerrainTex('grassN', materials ? '/textures/terrain/stylized/Stone_05_NormalGL.jpg' : freebies ? '/textures/terrain/stylized/Flat_NormalGL.jpg' : 'Grass001_NormalGL.jpg', false);
+  kickTerrainTex('dirtC', materials ? '/textures/terrain/stylized/Stone_03_Color.jpg' : freebies ? '/textures/terrain/stylized/ForestPath_Color.jpg' : 'Ground048_Color.jpg', true);
+  kickTerrainTex('dirtN', materials ? '/textures/terrain/stylized/Stone_03_NormalGL.jpg' : freebies ? '/textures/terrain/stylized/Flat_NormalGL.jpg' : 'Ground048_NormalGL.jpg', false);
+  kickTerrainTex('rockC', materials ? '/textures/terrain/stylized/Stone_01_Color.jpg' : freebies ? '/textures/terrain/stylized/Stone01_Color.jpg' : 'Rock051_Color.jpg', true);
+  kickTerrainTex('rockN', materials ? '/textures/terrain/stylized/Stone_01_NormalGL.jpg' : freebies ? '/textures/terrain/stylized/Stone01_NormalGL.jpg' : 'Rock051_NormalGL.jpg', false);
+  kickTerrainTex('sandC', materials ? '/textures/terrain/stylized/PlasterWall_01_Color.jpg' : 'Ground080_Color.jpg', true);
+  kickTerrainTex('sandN', materials ? '/textures/terrain/stylized/PlasterWall_01_NormalGL.jpg' : 'Ground080_NormalGL.jpg', false);
+  kickTerrainTex('mudC', materials ? '/textures/terrain/stylized/Stone_04_Color.jpg' : freebies ? '/textures/terrain/stylized/ForestPath_Color.jpg' : 'Ground071_Color.jpg', true); // marsh wet mud (dirt variant)
+  kickTerrainTex('snowC', materials ? '/textures/terrain/stylized/Stone_02_Color.jpg' : freebies ? '/textures/terrain/stylized/IcyRocks_Color.jpg' : 'Snow010A_Color.jpg', true);
 }
 
 // Per-layer constant roughness, eyeballed from the packs' roughness-map means
