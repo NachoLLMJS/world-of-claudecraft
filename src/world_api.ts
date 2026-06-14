@@ -104,6 +104,8 @@ export interface IWorld {
   startAutoAttack(): void;
   stopAutoAttack(): void;
   interact(): void;
+  chopNearestTree(): boolean;
+  choppedTrees: Map<string, number>;
   lootCorpse(id: number): void;
   pickUpObject(id: number): void;
   acceptQuest(questId: string): void;

@@ -206,6 +206,7 @@ async function startGame(world: IWorld, offlineSim: Sim | null, online: ClientWo
       return;
     }
     if (bestNpc !== null) { hud.openQuestDialog(bestNpc); return; }
+    if (world.chopNearestTree()) return;
     hud.showError('Nothing to interact with.');
   }
 

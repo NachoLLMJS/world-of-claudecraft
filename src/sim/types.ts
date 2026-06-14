@@ -400,6 +400,9 @@ export interface Entity {
   castRemaining: number;
   castTotal: number;
   channeling: boolean;
+  choppingTreeKey: string | null;
+  choppingTreeX: number;
+  choppingTreeZ: number;
   channelTickTimer: number;
   channelTickEvery: number;
   gcdRemaining: number;
@@ -474,6 +477,9 @@ export type SimEvent = { pid?: number } & (
   | { type: 'aura'; targetId: number; name: string; gained: boolean }
   | { type: 'castStart'; entityId: number; ability: string; time: number }
   | { type: 'castStop'; entityId: number; success: boolean }
+  | { type: 'treeChopStart'; entityId: number; treeKey: string; x: number; z: number; time: number }
+  | { type: 'treeChopStop'; entityId: number; treeKey: string; success: boolean }
+  | { type: 'treeState'; treeKey: string; chopped: boolean; respawnSeconds?: number }
   | { type: 'comboPoint'; points: number }
   | { type: 'playerDeath' }
   | { type: 'respawn' }

@@ -167,6 +167,21 @@ export function zoneBiomeAt(z: number): BiomeId {
   return ZONES[ZONES.length - 1].biome;
 }
 
+// The renderer does a second deterministic thinning pass for trees so dense
+// forests stay cheap. Gameplay/HUD must use the exact same predicate; otherwise
+// players can chop "logical" trees at positions where no tree mesh exists.
+export function decorationVisualHash(x: number, z: number, salt: number): number {
+  const s = Math.sin(x * 127.1 + z * 311.7 + salt * 74.7) * 43758.5453123;
+  return s - Math.floor(s);
+}
+
+export function isVisibleTreeDecoration(d: Decoration): boolean {
+  if (d.kind === 'tree') return decorationVisualHash(d.x, d.z, 81) < 0.58;
+  if (d.kind !== 'tree2') return false;
+  if (d.biome === 'marsh') return decorationVisualHash(d.x, d.z, 83) < 0.55;
+  return decorationVisualHash(d.x, d.z, 82) < 0.58;
+}
+
 export function generateDecorations(seed: number): Decoration[] {
   const out: Decoration[] = [];
   const step = 10;

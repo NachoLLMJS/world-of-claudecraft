@@ -164,7 +164,8 @@ function blankEntity(id: number): Entity {
     targetId: null, autoAttack: false, swingTimer: 0,
     inCombat: false, combatTimer: 99,
     auras: [], castingAbility: null, castRemaining: 0, castTotal: 0,
-    channeling: false, channelTickTimer: 0, channelTickEvery: 0,
+    channeling: false, choppingTreeKey: null, choppingTreeX: 0, choppingTreeZ: 0,
+    channelTickTimer: 0, channelTickEvery: 0,
     gcdRemaining: 0, cooldowns: new Map(), queuedOnSwing: null, fiveSecondRule: 99,
     comboPoints: 0, comboTargetId: null, overpowerUntil: -1, savedMana: 0,
     chargeTargetId: null, chargeTimeLeft: 0, chargePath: [],
@@ -184,6 +185,7 @@ export class ClientWorld implements IWorld {
   playerId = -1;
   moveInput: MoveInput = emptyMoveInput();
   inventory: InvSlot[] = [];
+  choppedTrees = new Map<string, number>();
   equipment: Partial<Record<EquipSlot, string>> = {};
   copper = 0;
   xp = 0;
@@ -210,6 +212,7 @@ export class ClientWorld implements IWorld {
   private readonly token: string;
   private readonly base: string;
   private eventQueue: SimEvent[] = [];
+  private lastTreeTimerSync = 0;
   // inventory deltas arrive in snapshots, separate from the event frames the
   // HUD redraws on — the frame loop polls this so open panels re-render
   private invChanged = false;
@@ -305,7 +308,10 @@ export class ClientWorld implements IWorld {
       return;
     }
     if (msg.t === 'events') {
-      for (const ev of msg.list) this.eventQueue.push(ev as SimEvent);
+      for (const ev of msg.list) {
+        this.applyWorldEvent(ev as SimEvent);
+        this.eventQueue.push(ev as SimEvent);
+      }
       return;
     }
     if (msg.t === 'social') {
@@ -324,8 +330,47 @@ export class ClientWorld implements IWorld {
     return v;
   }
 
+  private applyWorldEvent(ev: SimEvent): void {
+    if (ev.type === 'treeState') {
+      if (ev.chopped) this.choppedTrees.set(ev.treeKey, ev.respawnSeconds ?? 180);
+      else this.choppedTrees.delete(ev.treeKey);
+    } else if (ev.type === 'treeChopStart') {
+      const e = this.entities.get(ev.entityId);
+      if (e) {
+        e.choppingTreeKey = ev.treeKey;
+        e.choppingTreeX = ev.x;
+        e.choppingTreeZ = ev.z;
+        e.castRemaining = ev.time;
+        e.castTotal = ev.time;
+      }
+    } else if (ev.type === 'treeChopStop') {
+      const e = this.entities.get(ev.entityId);
+      if (e?.choppingTreeKey === ev.treeKey) {
+        e.choppingTreeKey = null;
+        e.castRemaining = 0;
+        e.castTotal = 0;
+      }
+    }
+  }
+
+  private updateChoppedTreeTimers(worldTime: number): void {
+    if (this.lastTreeTimerSync <= 0) {
+      this.lastTreeTimerSync = worldTime;
+      return;
+    }
+    const dt = Math.max(0, worldTime - this.lastTreeTimerSync);
+    this.lastTreeTimerSync = worldTime;
+    if (dt <= 0 || this.choppedTrees.size === 0) return;
+    for (const [key, remaining] of [...this.choppedTrees]) {
+      const next = remaining - dt;
+      if (next <= 0) this.choppedTrees.delete(key);
+      else this.choppedTrees.set(key, next);
+    }
+  }
+
   private applySnapshot(snap: any): void {
     const now = performance.now();
+    if (typeof snap.time === 'number') this.updateChoppedTreeTimers(snap.time);
     // the interpolation alpha the render loop reached on its last frame
     // (same formula and caps as main.ts); used below to re-anchor the new
     // interpolation segment at the pose currently on screen
@@ -413,6 +458,9 @@ export class ClientWorld implements IWorld {
       e.castRemaining = w.castRem ?? 0;
       e.castTotal = w.castTot ?? 0;
       e.channeling = !!w.chan;
+      e.choppingTreeKey = w.chop ?? null;
+      e.choppingTreeX = w.chopX ?? 0;
+      e.choppingTreeZ = w.chopZ ?? 0;
       e.sitting = !!w.sit;
       e.aggroTargetId = w.aggro ?? null;
       e.tappedById = w.tap ?? null;
@@ -531,6 +579,10 @@ export class ClientWorld implements IWorld {
   }
   interact(): void {
     this.cmd({ cmd: 'interact' });
+  }
+  chopNearestTree(): boolean {
+    this.cmd({ cmd: 'chop_tree' });
+    return true;
   }
   lootCorpse(id: number): void {
     this.cmd({ cmd: 'loot', id });

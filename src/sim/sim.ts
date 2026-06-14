@@ -13,7 +13,7 @@ import {
   HEAL_THREAT_FACTOR, MELEE_SWITCH_MULT, RANGED_SWITCH_MULT,
   TAUNT_FORCE_SECONDS, addThreat, clearThreat, stealthDetectionRadius, threatModifier, topThreatValue,
 } from './threat';
-import { groundHeight, WATER_LEVEL } from './world';
+import { generateDecorations, groundHeight, isVisibleTreeDecoration, WATER_LEVEL } from './world';
 import {
   AbilityDef, AbilityEffect, Aura, CAST_PUSHBACK_SEC, CHANNEL_PUSHBACK_FRACTION, CONSUME_DURATION,
   CONSUME_TICKS, DT, Entity, EquipSlot, GCD,
@@ -58,6 +58,13 @@ const PET_FOLLOW_DISTANCE = 3.5;
 const PET_TELEPORT_DISTANCE = 60; // owner this far away: pet warps to heel
 const PET_ASSIST_RANGE = 50; // how far the pet scans for enemies engaging the pair
 const PET_GROWL_INTERVAL = 8; // controlled pets can tank by forcing attention
+const TREE_CHOP_RANGE = 4.5;
+const TREE_CHOP_TIME = 5;
+const TREE_RESPAWN = 180;
+
+function treeKey(x: number, z: number): string {
+  return `${Math.round(x * 10)}:${Math.round(z * 10)}`;
+}
 
 export interface Party {
   id: number;
@@ -201,6 +208,8 @@ export class Sim {
   primaryId = -1; // the local/RL player in single-player contexts
   nextId = 1;
   events: SimEvent[] = [];
+  readonly harvestableTrees: { key: string; x: number; z: number }[];
+  choppedTrees = new Map<string, number>();
   // social systems
   parties = new Map<number, Party>();
   partyByPid = new Map<number, number>(); // pid -> party id
@@ -224,6 +233,9 @@ export class Sim {
       playerName: cfg.playerName ?? 'Adventurer',
     };
     this.rng = new Rng(cfg.seed);
+    this.harvestableTrees = generateDecorations(cfg.seed)
+      .filter(isVisibleTreeDecoration)
+      .map((d) => ({ key: treeKey(d.x, d.z), x: d.x, z: d.z }));
 
     // NPCs — nudged out of buildings and deep water if their data position is bad
     for (const npcDef of Object.values(NPCS)) {
@@ -587,6 +599,7 @@ export class Sim {
       if (!p.dead) {
         this.updatePlayerMovement(p, meta);
         this.updateDoorTriggers(p);
+        this.updateTreeChopping(p, meta);
         this.updateCasting(p, meta);
         this.updatePlayerAutoAttack(p, meta);
         this.updateRegen(p, meta);
@@ -606,6 +619,8 @@ export class Sim {
         }
       }
     }
+
+    this.updateTreeRespawns();
 
     // one pass over the entities collects every player a mob is engaged
     // with, instead of one full scan per player
@@ -757,6 +772,7 @@ export class Sim {
     const swimming = this.isSwimming(p);
     if (moving) {
       if (p.castingAbility) this.cancelCast(p);
+      if (p.choppingTreeKey) this.cancelTreeChop(p);
       const len = Math.hypot(mx, mz);
       mx /= len; mz /= len;
       let speed = RUN_SPEED * this.moveSpeedMult(p);
@@ -846,6 +862,79 @@ export class Sim {
       p.eating = null;
       p.drinking = null;
       this.emit({ type: 'log', text: 'You stand up.', color: '#999', pid: p.id });
+    }
+  }
+
+  private nearestHarvestableTree(p: Entity): { key: string; x: number; z: number; d: number } | null {
+    let best: { key: string; x: number; z: number; d: number } | null = null;
+    for (const t of this.harvestableTrees) {
+      if (this.choppedTrees.has(t.key)) continue;
+      const d = Math.hypot(p.pos.x - t.x, p.pos.z - t.z);
+      if (d <= TREE_CHOP_RANGE && (!best || d < best.d)) best = { ...t, d };
+    }
+    return best;
+  }
+
+  chopNearestTree(pid?: number): boolean {
+    const r = this.resolve(pid);
+    if (!r) return false;
+    const p = r.e;
+    if (p.dead) return false;
+    if (p.inCombat) { this.error(p.id, "You can't do that while in combat."); return true; }
+    if (this.isSwimming(p)) { this.error(p.id, "You can't do that while swimming."); return true; }
+    if (p.choppingTreeKey) return true;
+    const tree = this.nearestHarvestableTree(p);
+    if (!tree) return false;
+    if (p.castingAbility) this.cancelCast(p);
+    if (p.sitting) this.standUp(p);
+    p.autoAttack = false;
+    p.choppingTreeKey = tree.key;
+    p.choppingTreeX = tree.x;
+    p.choppingTreeZ = tree.z;
+    p.castRemaining = TREE_CHOP_TIME;
+    p.castTotal = TREE_CHOP_TIME;
+    p.facing = angleTo(p.pos, { x: tree.x, y: p.pos.y, z: tree.z });
+    this.emit({ type: 'treeChopStart', entityId: p.id, treeKey: tree.key, x: tree.x, z: tree.z, time: TREE_CHOP_TIME });
+    return true;
+  }
+
+  private updateTreeChopping(p: Entity, meta: PlayerMeta): void {
+    if (!p.choppingTreeKey) return;
+    const key = p.choppingTreeKey;
+    if (this.isStunned(p) || this.choppedTrees.has(key)
+      || Math.hypot(p.pos.x - p.choppingTreeX, p.pos.z - p.choppingTreeZ) > TREE_CHOP_RANGE + 0.75) {
+      this.cancelTreeChop(p);
+      return;
+    }
+    p.facing = angleTo(p.pos, { x: p.choppingTreeX, y: p.pos.y, z: p.choppingTreeZ });
+    p.castRemaining -= DT;
+    if (p.castRemaining > 0) return;
+    p.castRemaining = 0;
+    p.choppingTreeKey = null;
+    this.choppedTrees.set(key, TREE_RESPAWN);
+    this.addItem('harvested_wood', 1, meta.entityId);
+    this.emit({ type: 'treeChopStop', entityId: p.id, treeKey: key, success: true });
+    this.emit({ type: 'treeState', treeKey: key, chopped: true, respawnSeconds: TREE_RESPAWN });
+  }
+
+  private cancelTreeChop(p: Entity): void {
+    const key = p.choppingTreeKey;
+    if (!key) return;
+    p.choppingTreeKey = null;
+    p.castRemaining = 0;
+    p.castTotal = 0;
+    this.emit({ type: 'treeChopStop', entityId: p.id, treeKey: key, success: false });
+  }
+
+  private updateTreeRespawns(): void {
+    for (const [key, t] of [...this.choppedTrees]) {
+      const next = t - DT;
+      if (next <= 0) {
+        this.choppedTrees.delete(key);
+        this.emit({ type: 'treeState', treeKey: key, chopped: false });
+      } else {
+        this.choppedTrees.set(key, next);
+      }
     }
   }
 
@@ -2822,7 +2911,8 @@ export class Sim {
       this.pickUpObject(obj.id, p.id);
       return;
     }
-    if (npc) this.talkToNpc(npc.id, p.id);
+    if (npc) { this.talkToNpc(npc.id, p.id); return; }
+    this.chopNearestTree(p.id);
   }
 
   talkToNpc(npcId: number, pid?: number): void {

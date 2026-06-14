@@ -227,6 +227,13 @@
   #castbar.channel .fill { background: linear-gradient(#8ad4ff, #1a74c9 60%, #125a9a); }
   #castbar .label { position: absolute; inset: 0; text-align: center; font-size: 12px; line-height: 21px;
     color: #fff; text-shadow: 1px 1px 2px #000; font-family: var(--title-font); }
+  #tree-interact-prompt { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); z-index: 72;
+    display: none; padding: 8px 14px; min-width: 220px; text-align: center; border: 1px solid #7a5a22;
+    outline: 1px solid #000; border-radius: 6px; background: linear-gradient(#241b10ee, #0d0905ee);
+    color: #ffd100; font-family: var(--title-font); font-size: 13px; letter-spacing: .3px;
+    text-shadow: 1px 1px 2px #000; box-shadow: 0 0 16px #000c, inset 0 1px 0 #fff2; pointer-events: none; }
+  #tree-interact-prompt .key { display: inline-block; min-width: 18px; padding: 1px 5px; margin-right: 5px;
+    border: 1px solid #b58a32; border-radius: 3px; background: #110d08; color: #fff3b2; }
 
   /* ---------- bottom cluster ---------- */
   #bottom-bar { position: absolute; left: 50%; transform: translateX(-50%); bottom: 6px; text-align: center; }
@@ -2031,6 +2038,7 @@
     <div id="trade-window" class="window panel"></div>
 
     <div id="castbar"><div class="fill"></div><div class="label"></div></div>
+    <div id="tree-interact-prompt"><span class="key">F</span> Chop tree</div>
 
     <div id="minimap-wrap">
       <div id="zone-label">Eastbrook Vale</div>

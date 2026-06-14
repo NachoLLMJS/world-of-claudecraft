@@ -19,11 +19,12 @@ export interface AnimState {
   backwards: boolean;
   dead: boolean;
   casting: boolean;
+  chopping?: boolean;
   swimming: boolean;
   sitting: boolean;
 }
 
-type BaseState = 'idle' | 'walk' | 'walkBack' | 'run' | 'cast' | 'swim' | 'sit';
+type BaseState = 'idle' | 'walk' | 'walkBack' | 'run' | 'cast' | 'chop' | 'swim' | 'sit';
 
 const FADE = 0.22;
 const ONESHOT_FADE = 0.1;
@@ -82,6 +83,8 @@ export class CharacterVisual {
   private casters: THREE.Mesh[] = [];
   private originalMaterials = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
   private ghostMaterials = new Map<THREE.Material, THREE.Material>();
+  private originalWeaponVisibility = new Map<THREE.Object3D, boolean>();
+  private harvestTool: THREE.Object3D | null = null;
 
   private baseState: BaseState = 'idle';
   private current: THREE.AnimationAction | null = null;
@@ -109,6 +112,7 @@ export class CharacterVisual {
     this.model.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (mesh.isMesh) this.originalMaterials.set(mesh, mesh.material);
+      if (isVisibleWeaponNode(o)) this.originalWeaponVisibility.set(o, o.visible);
     });
     this.modelWrap.rotation.y = prep.def.yaw ?? 0;
     this.modelWrap.scale.setScalar(prep.normScale);
@@ -276,6 +280,40 @@ export class CharacterVisual {
     }
   }
 
+  setHarvestTool(template: THREE.Object3D | null, active: boolean, progress: number): void {
+    for (const [node, wasVisible] of this.originalWeaponVisibility) {
+      node.visible = active ? false : wasVisible;
+    }
+    if (active && !this.harvestTool && template) {
+      const bone = this.findHandBone();
+      if (bone) {
+        const axe = template.clone(true);
+        axe.name = 'Harvest_Axe_Attached';
+        axe.traverse((o) => {
+          const mesh = o as THREE.Mesh;
+          if (mesh.isMesh) {
+            mesh.castShadow = true;
+            mesh.receiveShadow = false;
+          }
+        });
+        // WeaponR already carries the authored Warrior_Sword transform. Use the
+        // same local basis so the tool sits in the palm instead of pivoting from
+        // the axe head. The extra progress swing is small and applied around
+        // that grip pose so the handle stays in the hand.
+        axe.scale.setScalar(0.42);
+        axe.position.set(-0.05, 0.085, -0.045);
+        axe.rotation.set(-3.03, 0, 1.57);
+        bone.add(axe);
+        this.harvestTool = axe;
+      }
+    }
+    if (!this.harvestTool) return;
+    this.harvestTool.visible = active;
+    if (!active) return;
+    const swing = Math.sin(progress * Math.PI * 12);
+    this.harvestTool.rotation.set(-3.03 + swing * 0.22, 0, 1.57 + swing * 0.12);
+  }
+
   dispose(): void {
     this.mixer.stopAllAction();
     this.mixer.uncacheRoot(this.model);
@@ -298,6 +336,7 @@ export class CharacterVisual {
 
   private desiredBase(s: AnimState): BaseState {
     if (s.swimming) return 'swim';
+    if (s.chopping) return 'chop';
     if (s.casting) return 'cast';
     if (s.sitting) return 'sit';
     if (s.moving) {
@@ -334,6 +373,7 @@ export class CharacterVisual {
       case 'walkBack': return this.action(c.walkBack) ?? this.action(c.walk);
       case 'run': return this.action(c.run) ?? this.action(c.walk);
       case 'cast': return this.action(c.cast) ?? this.action(c.idle);
+      case 'chop': return this.action(c.attack[0]) ?? this.action(c.cast) ?? this.action(c.idle);
       case 'swim': return this.action(c.swim) ?? this.action(c.idle);
       case 'sit': return this.action(c.sitDown) ?? this.action(c.sitIdle) ?? this.action(c.idle);
       default: return this.action(c.idle);
@@ -426,6 +466,31 @@ export class CharacterVisual {
       this.fadeTo(this.action(this.def.clips.idle), 0.2, false);
     }
   }
+
+  private findHandBone(): THREE.Object3D | null {
+    // Quaternius rigs use names without punctuation (WeaponR/Fist1R), while
+    // some KayKit rigs use dotted suffixes. Prefer the dedicated weapon socket
+    // when present so held tools follow the authored hand/weapon animation.
+    return this.model.getObjectByName('WeaponR')
+      ?? this.model.getObjectByName('Fist1R')
+      ?? this.model.getObjectByName('FistR')
+      ?? this.model.getObjectByName('HandR')
+      ?? this.model.getObjectByName('Weapon.R')
+      ?? this.model.getObjectByName('Fist1.R')
+      ?? this.model.getObjectByName('Fist.R')
+      ?? this.model.getObjectByName('Hand.R')
+      ?? null;
+  }
+}
+
+function isVisibleWeaponNode(o: THREE.Object3D): boolean {
+  // Only hide visible weapon meshes. Do not hide weapon/hand bones like
+  // WeaponR, or any newly attached tool becomes invisible with its parent.
+  const mesh = o as THREE.Mesh;
+  if (!mesh.isMesh) return false;
+  const n = o.name.toLowerCase();
+  if (n.includes('shoulder')) return false;
+  return /weapon|sword|dagger|bow|staff|mace|axe/.test(n);
 }
 
 function clipNamesOf(def: VisualDef): string[] {

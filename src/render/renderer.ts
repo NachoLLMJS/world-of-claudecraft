@@ -22,6 +22,7 @@ import { buildWater, WaterView } from './water';
 import { buildClouds, buildSky, SkyView } from './sky';
 import { buildFoliage, FoliageView } from './foliage';
 import { shouldRenderStealthGhost } from './stealth';
+import { loadGltf } from './assets/loader';
 
 const NAMEPLATE_RANGE = 55;
 // Entities further than this from the player are hidden entirely: their rigs
@@ -78,6 +79,7 @@ interface EntityView {
   markerEl: HTMLDivElement;
   sparkle?: THREE.Sprite; // ground objects
   objectMesh?: THREE.Object3D;
+  axeMesh?: THREE.Object3D;
   portal?: THREE.Mesh; // dungeon door swirl
   objectCasters: THREE.Object3D[]; // object-view shadow meshes, distance-gated
   shadowOn: boolean;
@@ -140,6 +142,7 @@ export class Renderer {
   private time = 0;
   private frameIdx = 0;
   vfx: Vfx;
+  private axeTemplate: THREE.Object3D | null = null;
 
   private lowGfx: boolean;
   private post: PostPipeline | null = null;
@@ -221,6 +224,9 @@ export class Renderer {
     this.scene.add(sun.target);
     this.sun = sun;
     this.sunDir.copy(SUN_DIR);
+    void loadGltf('/models/tools/woc_new/Axe_Wood.gltf').then((gltf) => {
+      this.axeTemplate = gltf.scene;
+    }).catch(() => { this.axeTemplate = null; });
 
     // visible sun disc + bloom halo
     const sunCanvas = (core: boolean): THREE.CanvasTexture => {
@@ -707,6 +713,13 @@ export class Renderer {
     this.views.delete(id);
   }
 
+  private updateAxeVisual(active: CharacterVisual, e: Entity): void {
+    const chopping = e.kind === 'player' && e.choppingTreeKey !== null && !e.dead;
+    const total = Math.max(0.01, e.castTotal);
+    const progress = chopping ? 1 - e.castRemaining / total : 0;
+    active.setHarvestTool(this.axeTemplate, chopping, progress);
+  }
+
   sync(alpha: number, dt: number, renderFacingOverride: number | null): void {
     this.time += dt;
     sharedUniforms.uTime.value = this.time;
@@ -837,6 +850,7 @@ export class Renderer {
         backwards: loco.backwards,
         dead: e.dead,
         casting: e.castingAbility !== null && !e.dead,
+        chopping: e.choppingTreeKey !== null && !e.dead,
         swimming,
         sitting: e.kind === 'player' && (e.sitting || e.eating !== null || e.drinking !== null),
       };
@@ -848,8 +862,9 @@ export class Renderer {
         else if (d2 > ENTITY_SHADOW_RANGE_SQ) animate = ((this.frameIdx + e.id) & 1) === 0;
       }
       active.update(dt, st, animate);
+      this.updateAxeVisual(active, e);
 
-      if (st.casting) {
+      if (e.castingAbility !== null && st.casting) {
         this.vfx.castSparkle(e.id, ABILITIES[e.castingAbility!]?.school ?? 'arcane', dt);
       }
       if (swimming) this.vfx.swimRipple(v.group.position, moving ? dt * 3 : dt);
@@ -910,6 +925,7 @@ export class Renderer {
     const fogFar = (this.scene.fog as THREE.Fog).far;
     this.terrainView.update(this.camera.position.x, this.camera.position.z, fogFar);
     this.propsView.update(this.camera.position.x, this.camera.position.z, fogFar);
+    this.foliage.setChoppedTrees(new Set(this.sim.choppedTrees.keys()));
     this.foliage.update(p.pos.x, p.pos.z, this.camera.position.x, this.camera.position.z, fogFar);
 
     this.vfx.update(dt);

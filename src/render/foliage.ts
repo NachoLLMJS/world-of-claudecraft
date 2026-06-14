@@ -6,7 +6,7 @@ import {
 } from '../sim/data';
 import type { BiomeId } from '../sim/types';
 import {
-  generateDecorations, roadDistance, terrainHeight, zoneBiomeAt, WATER_LEVEL,
+  generateDecorations, isVisibleTreeDecoration, roadDistance, terrainHeight, zoneBiomeAt, WATER_LEVEL,
 } from '../sim/world';
 import type { Decoration } from '../sim/world';
 import { GFX, sharedUniforms } from './gfx';
@@ -104,8 +104,19 @@ const GRASS_SLOPE_EPS = 1.2;
 
 export interface FoliageView {
   group: THREE.Group;
+  setChoppedTrees(keys: Set<string>): void;
   /** per-frame: grass fade + ring rebuild, fog culling of far tree buckets */
   update(px: number, pz: number, camX: number, camZ: number, fogFar: number): void;
+}
+
+interface TreeInstanceRef {
+  mesh: THREE.InstancedMesh;
+  index: number;
+  matrix: THREE.Matrix4;
+}
+
+function treeKey(x: number, z: number): string {
+  return `${Math.round(x * 10)}:${Math.round(z * 10)}`;
 }
 
 // deterministic 0..1 hash on integer grid cells / world coords
@@ -385,6 +396,7 @@ const c = new THREE.Color();
 function placeSpecies(
   parent: THREE.Group, seed: number, bucket: Bucket, items: Decoration[],
   spec: SpeciesSpec, register: (mesh: THREE.InstancedMesh, minDist?: number, maxDist?: number) => void,
+  registerTree?: (key: string, mesh: THREE.InstancedMesh, index: number, matrix: THREE.Matrix4) => void,
 ): void {
   if (items.length === 0) return;
   const subset = variantSubset(spec.perBucket, spec.sets.length, bucket.band, bucket.col, spec.salt);
@@ -404,6 +416,7 @@ function placeSpecies(
         q.setFromAxisAngle(up, d.variant * 2.1 + hashAt(d.x, d.z, 11) * Math.PI * 2);
         m.compose(v.set(d.x, y - spec.sink * s, d.z), q, sv.set(s, s * heightJitter, s));
         im.setMatrixAt(i, m);
+        registerTree?.(treeKey(d.x, d.z), im, i, m.clone());
         if (part.isLeaf) {
           const hex = typeof spec.leafTint === 'number' ? spec.leafTint : spec.leafTint[d.biome];
           im.setColorAt(i, softTint(d.x, d.z, hex, c, LEAF_TINT_SOFTEN));
@@ -420,6 +433,7 @@ function placeSpecies(
       register(im, undefined, cullBark ? barkFar : undefined);
       if (!part.isLeaf && spec.farTrunkProxy) {
         const proxy = cloneInstancedTo(im, farTrunkGeo(part.geometry), part.material);
+        list.forEach((d, i) => registerTree?.(treeKey(d.x, d.z), proxy, i, m.fromArray(proxy.instanceMatrix.array as Float32Array, i * 16).clone()));
         proxy.receiveShadow = true;
         parent.add(proxy);
         register(proxy, barkFar, undefined);
@@ -428,7 +442,7 @@ function placeSpecies(
   });
 }
 
-function buildTrees(parent: THREE.Group, seed: number, registry: BucketMesh[]): void {
+function buildTrees(parent: THREE.Group, seed: number, registry: BucketMesh[], treeRegistry: Map<string, TreeInstanceRef[]>): void {
   const decos = generateDecorations(seed);
   const buckets = new Map<string, Bucket>();
   for (const d of decos) {
@@ -497,9 +511,10 @@ function buildTrees(parent: THREE.Group, seed: number, registry: BucketMesh[]): 
 
   for (const bucket of buckets.values()) {
     const { items } = bucket;
-    const pines = items.filter((d) => d.kind === 'tree' && hashAt(d.x, d.z, 81) < 0.58);
-    const oaks = items.filter((d) => d.kind === 'tree2' && d.biome !== 'marsh' && hashAt(d.x, d.z, 82) < 0.58);
-    const swamps = items.filter((d) => d.kind === 'tree2' && d.biome === 'marsh' && hashAt(d.x, d.z, 83) < 0.55);
+    const visibleTrees = items.filter(isVisibleTreeDecoration);
+    const pines = visibleTrees.filter((d) => d.kind === 'tree');
+    const oaks = visibleTrees.filter((d) => d.kind === 'tree2' && d.biome !== 'marsh');
+    const swamps = visibleTrees.filter((d) => d.kind === 'tree2' && d.biome === 'marsh');
     // marsh swamp trees split between twisted (mossy) and dead (bare) models
     const twisteds = swamps.filter((d) => hashAt(d.x, d.z, 19) >= 0.35);
     const deads = swamps.filter((d) => hashAt(d.x, d.z, 19) < 0.35);
@@ -517,11 +532,17 @@ function buildTrees(parent: THREE.Group, seed: number, registry: BucketMesh[]): 
     const register = (mesh: THREE.InstancedMesh, minDist?: number, maxDist?: number): void => {
       registry.push({ mesh, x: bx, z: bz, radius: bRadius, minDist, maxDist });
     };
+    const registerTree = (key: string, mesh: THREE.InstancedMesh, index: number, matrix: THREE.Matrix4): void => {
+      const list = treeRegistry.get(key);
+      const ref = { mesh, index, matrix };
+      if (list) list.push(ref);
+      else treeRegistry.set(key, [ref]);
+    };
 
-    placeSpecies(parent, seed, bucket, pines, pineSpec, register);
-    placeSpecies(parent, seed, bucket, oaks, oakSpec, register);
-    placeSpecies(parent, seed, bucket, twisteds, twistedSpec, register);
-    placeSpecies(parent, seed, bucket, deads, deadSpec, register);
+    placeSpecies(parent, seed, bucket, pines, pineSpec, register, registerTree);
+    placeSpecies(parent, seed, bucket, oaks, oakSpec, register, registerTree);
+    placeSpecies(parent, seed, bucket, twisteds, twistedSpec, register, registerTree);
+    placeSpecies(parent, seed, bucket, deads, deadSpec, register, registerTree);
 
     if (rocks.length > 0) {
       const isCluster = (r: Decoration): boolean => hashAt(r.x, r.z, 7) > 0.72;
@@ -847,11 +868,32 @@ export function buildFoliage(seed: number): FoliageView {
   const group = new THREE.Group();
   group.name = 'foliage';
   const bucketMeshes: BucketMesh[] = [];
-  buildTrees(group, seed, bucketMeshes);
+  const treeRegistry = new Map<string, TreeInstanceRef[]>();
+  const hiddenTrees = new Set<string>();
+  const zero = new THREE.Matrix4().makeScale(0, 0, 0);
+  buildTrees(group, seed, bucketMeshes, treeRegistry);
   buildDressing(group, seed, bucketMeshes);
   const grass = buildGrassRing(group, seed);
+  const applyTreeVisibility = (key: string, hidden: boolean): void => {
+    const refs = treeRegistry.get(key);
+    if (!refs) return;
+    for (const ref of refs) {
+      ref.mesh.setMatrixAt(ref.index, hidden ? zero : ref.matrix);
+      ref.mesh.instanceMatrix.needsUpdate = true;
+    }
+  };
   return {
     group,
+    setChoppedTrees(keys: Set<string>): void {
+      for (const key of hiddenTrees) {
+        if (!keys.has(key)) applyTreeVisibility(key, false);
+      }
+      for (const key of keys) {
+        if (!hiddenTrees.has(key)) applyTreeVisibility(key, true);
+      }
+      hiddenTrees.clear();
+      for (const key of keys) hiddenTrees.add(key);
+    },
     update(px: number, pz: number, camX: number, camZ: number, fogFar: number): void {
       grass.update(px, pz);
       // buckets fully behind the fog wall are pure overdraw; the optional

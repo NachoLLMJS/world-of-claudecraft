@@ -145,6 +145,11 @@ function dynamicFields(e: Entity): Record<string, unknown> {
     out.castTot = round2(e.castTotal);
     if (e.channeling) out.chan = 1;
   }
+  if (e.choppingTreeKey) {
+    out.chop = e.choppingTreeKey;
+    out.chopX = round2(e.choppingTreeX);
+    out.chopZ = round2(e.choppingTreeZ);
+  }
   if (e.sitting || e.eating || e.drinking) out.sit = 1;
   if (e.aggroTargetId !== null) out.aggro = e.aggroTargetId;
   if (e.tappedById !== null) out.tap = e.tappedById;
@@ -592,6 +597,7 @@ export class GameServer {
       case 'attack': sim.startAutoAttack(pid); break;
       case 'stopattack': sim.stopAutoAttack(pid); break;
       case 'interact': sim.interact(pid); break;
+      case 'chop_tree': sim.chopNearestTree(pid); break;
       case 'loot': if (typeof msg.id === 'number') sim.lootCorpse(msg.id, pid); break;
       case 'pickup': if (typeof msg.id === 'number') sim.pickUpObject(msg.id, pid); break;
       case 'accept': if (typeof msg.quest === 'string') { sim.acceptQuest(msg.quest, pid); this.resyncQuests(session); } break;

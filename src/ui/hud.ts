@@ -8,7 +8,7 @@ import {
 import type { ZoneDef } from '../sim/data';
 import type { InvSlot } from '../sim/types';
 import { AbilityEffect, CONSUME_DURATION, Entity, GCD, ItemDef, SimEvent, dist2d, xpForLevel, MAX_LEVEL, MELEE_RANGE } from '../sim/types';
-import { terrainHeight, WATER_LEVEL, roadDistance } from '../sim/world';
+import { terrainHeight, WATER_LEVEL, roadDistance, generateDecorations, isVisibleTreeDecoration } from '../sim/world';
 import { Meters } from './meters';
 import { audio } from '../game/audio';
 import { music } from '../game/music';
@@ -51,6 +51,8 @@ const CLASS_GLYPH: Record<string, string> = {
 // yards past a zone boundary before the crossing banner/welcome commits
 const ZONE_BANNER_DEADBAND = 5;
 const IGNORED_CHAT_NAMES_KEY = 'woc_ignored_chat_names';
+const TREE_PROMPT_RANGE = 4.2;
+const treePromptKey = (x: number, z: number): string => `${Math.round(x * 10)}:${Math.round(z * 10)}`;
 
 export class Hud {
   private static readonly BAR_ABILITY_SLOTS = 11; // bar slots 1..11; slot 0 is the fixed Attack toggle
@@ -97,10 +99,14 @@ export class Hud {
   // current typeahead state: which input, its results, and the keyboard-
   // highlighted row (-1 = none), so Enter/Arrow keys can pick a suggestion
   private socialSuggest: { field: string; items: { name: string; cls: string; level: number }[]; index: number } = { field: '', items: [], index: -1 };
+  private readonly harvestableTrees: { key: string; x: number; z: number }[];
 
   private meters: Meters;
 
   constructor(private sim: IWorld, private renderer: Renderer, private keybinds: Keybinds) {
+    this.harvestableTrees = generateDecorations(sim.cfg.seed)
+      .filter(isVisibleTreeDecoration)
+      .map((d) => ({ key: treePromptKey(d.x, d.z), x: d.x, z: d.z }));
     this.ignoredChatNames = this.loadIgnoredChatNames();
     this.meters = new Meters(sim);
     this.bindLogTabs();
@@ -437,6 +443,7 @@ export class Hud {
     const sim = this.sim;
     const p = sim.player;
     this.meters.update();
+    this.updateTreePrompt();
     this.syncSlotMap(); // picks up newly learned abilities mid-session
 
     // player frame
@@ -501,6 +508,12 @@ export class Hud {
         : 1 - p.castRemaining / Math.max(0.01, p.castTotal);
       (cb.querySelector('.fill') as HTMLElement).style.width = `${(frac * 100).toFixed(1)}%`;
       (cb.querySelector('.label') as HTMLElement).textContent = ABILITIES[p.castingAbility].name;
+    } else if (p.choppingTreeKey) {
+      cb.style.display = 'block';
+      cb.classList.add('channel');
+      const frac = 1 - p.castRemaining / Math.max(0.01, p.castTotal);
+      (cb.querySelector('.fill') as HTMLElement).style.width = `${(frac * 100).toFixed(1)}%`;
+      (cb.querySelector('.label') as HTMLElement).textContent = 'Chopping wood…';
     } else if (p.eating || p.drinking) {
       cb.style.display = 'block';
       cb.classList.add('channel');
@@ -626,6 +639,25 @@ export class Hud {
       const npc = sim.entities.get(this.openVendorNpcId);
       if (!npc || dist2d(p.pos, npc.pos) > 8) this.closeVendor();
     }
+  }
+
+  private updateTreePrompt(): void {
+    const el = $('#tree-interact-prompt');
+    const p = this.sim.player;
+    if (p.dead || p.choppingTreeKey) {
+      el.style.display = 'none';
+      return;
+    }
+    let near = false;
+    let bestD2 = TREE_PROMPT_RANGE * TREE_PROMPT_RANGE;
+    for (const tree of this.harvestableTrees) {
+      if (this.sim.choppedTrees.has(tree.key)) continue;
+      const dx = tree.x - p.pos.x;
+      const dz = tree.z - p.pos.z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 <= bestD2) { bestD2 = d2; near = true; }
+    }
+    el.style.display = near ? 'block' : 'none';
   }
 
   private renderAuras(el: HTMLElement, e: Entity, mode: 'all' | 'debuffs'): void {
