@@ -53,17 +53,21 @@ const GRASS_WIND_STRENGTH = 0.08;
 const BUCKET_DEPTH = 240;
 
 const MODEL_DIR = 'models/foliage/';
+const NEW_FOLIAGE_DIR = `${MODEL_DIR}woc_new/`;
 const MODEL_URLS = {
-  // pine_3 is shipped but unused: its 462-tri canopy reads as a dead pole
-  pine: [1, 2, 4, 5].map((i) => `${MODEL_DIR}pine_${i}.glb`),
-  oak: [1, 2, 3, 4, 5].map((i) => `${MODEL_DIR}oak_${i}.glb`),
-  twisted: [1, 2, 3].map((i) => `${MODEL_DIR}twisted_${i}.glb`),
-  dead: [1, 2, 3].map((i) => `${MODEL_DIR}dead_${i}.glb`),
-  rock: [1, 2, 3].map((i) => `${MODEL_DIR}rock_${i}.glb`),
-  bush: [`${MODEL_DIR}bush.glb`],
-  bushFlowers: [`${MODEL_DIR}bush_flowers.glb`],
-  fern: [`${MODEL_DIR}fern.glb`],
-  mushroom: [`${MODEL_DIR}mushroom.glb`],
+  // User-provided "arboles arbustos.zip" environment pack. These are compact
+  // blocky glTFs converted to GLB and used for every tree/bush/dressing slot.
+  pine: [1, 2, 3].map((i) => `${NEW_FOLIAGE_DIR}Tree_${i}.glb`),
+  oak: [2, 1, 3].map((i) => `${NEW_FOLIAGE_DIR}Tree_${i}.glb`),
+  twisted: ['Bamboo', 'Bamboo_Mid', 'Bamboo_Small'].map((n) => `${NEW_FOLIAGE_DIR}${n}.glb`),
+  dead: [1, 2, 3].map((i) => `${NEW_FOLIAGE_DIR}DeadTree_${i}.glb`),
+  // keep three rock entries because the cluster builder expects 3 singles.
+  rock: [`${NEW_FOLIAGE_DIR}Rock1.glb`, `${NEW_FOLIAGE_DIR}Rock2.glb`, `${NEW_FOLIAGE_DIR}Rock1.glb`],
+  bush: [`${NEW_FOLIAGE_DIR}Bush.glb`],
+  bushFlowers: [`${NEW_FOLIAGE_DIR}Flowers_1.glb`, `${NEW_FOLIAGE_DIR}Flowers_2.glb`],
+  fern: [`${NEW_FOLIAGE_DIR}Plant_2.glb`, `${NEW_FOLIAGE_DIR}Plant_3.glb`, `${NEW_FOLIAGE_DIR}Grass_Big.glb`],
+  grass: [`${NEW_FOLIAGE_DIR}Grass_Small.glb`, `${NEW_FOLIAGE_DIR}Grass_Big.glb`],
+  mushroom: [`${NEW_FOLIAGE_DIR}Mushroom.glb`],
 };
 
 // kick off fetches at import; buildFoliage assumes the cache is populated
@@ -445,20 +449,19 @@ function buildTrees(parent: THREE.Group, seed: number, registry: BucketMesh[]): 
   const pineSpec: SpeciesSpec = {
     sets: MODEL_URLS.pine.map(extractParts),
     perBucket: treeVariants, salt: 51, baseScale: 1.1, sink: 0.05,
-    leafTint: PINE_TINT, castBarkShadow: false,
-    cullBarkFar: true, // pine canopies start ~2u up: no proxy needed in fog
+    leafTint: PINE_TINT, castBarkShadow: true,
+    cullBarkFar: false,
   };
   const oakSpec: SpeciesSpec = {
     sets: MODEL_URLS.oak.map(extractParts),
     perBucket: treeVariants, salt: 54, baseScale: 1.15, sink: 0.05,
-    leafTint: OAK_TINT, castBarkShadow: false,
-    farTrunkProxy: true, // oak crowns float without a trunk stand-in
+    leafTint: OAK_TINT, castBarkShadow: true,
+    farTrunkProxy: false,
   };
   const twistedSpec: SpeciesSpec = {
     sets: MODEL_URLS.twisted.map(extractParts),
-    perBucket: treeVariants, salt: 57, baseScale: 0.5, sink: 0.05,
-    // twisted trunks sprawl sideways — no cheap proxy fits, keep them whole
-    leafTint: SWAMP_CANOPY_TINT, castBarkShadow: false,
+    perBucket: treeVariants, salt: 57, baseScale: 0.85, sink: 0.05,
+    leafTint: SWAMP_CANOPY_TINT, castBarkShadow: true,
   };
   const deadSpec: SpeciesSpec = {
     sets: MODEL_URLS.dead.map(extractParts),
@@ -494,9 +497,9 @@ function buildTrees(parent: THREE.Group, seed: number, registry: BucketMesh[]): 
 
   for (const bucket of buckets.values()) {
     const { items } = bucket;
-    const pines = items.filter((d) => d.kind === 'tree');
-    const oaks = items.filter((d) => d.kind === 'tree2' && d.biome !== 'marsh');
-    const swamps = items.filter((d) => d.kind === 'tree2' && d.biome === 'marsh');
+    const pines = items.filter((d) => d.kind === 'tree' && hashAt(d.x, d.z, 81) < 0.58);
+    const oaks = items.filter((d) => d.kind === 'tree2' && d.biome !== 'marsh' && hashAt(d.x, d.z, 82) < 0.58);
+    const swamps = items.filter((d) => d.kind === 'tree2' && d.biome === 'marsh' && hashAt(d.x, d.z, 83) < 0.55);
     // marsh swamp trees split between twisted (mossy) and dead (bare) models
     const twisteds = swamps.filter((d) => hashAt(d.x, d.z, 19) >= 0.35);
     const deads = swamps.filter((d) => hashAt(d.x, d.z, 19) < 0.35);
@@ -582,7 +585,7 @@ interface DressingSpot {
 }
 
 const DRESS_STEP = 12;
-const DRESS_DENSITY: Record<BiomeId, number> = { vale: 0.26, marsh: 0.26, peaks: 0.15 };
+const DRESS_DENSITY: Record<BiomeId, number> = { vale: 0.12, marsh: 0.1, peaks: 0.06 };
 
 function dressKindFor(biome: BiomeId, r: number): DressKind {
   if (biome === 'vale') {
@@ -751,33 +754,23 @@ function buildGrassRing(parent: THREE.Group, seed: number): GrassRing {
   const radius = GFX.grassRadius;
   const step = GFX.grassStep;
   const cells = Math.ceil((radius * 2) / step) + 2;
-  const maxCount = Math.ceil(cells * cells * 0.5);
+  const maxCount = Math.ceil(cells * cells * 0.14);
 
-  // high tier reads as a lush meadow: wider tufts with more blades; low keeps
-  // the legacy sprite size
+  // Use the user-provided grass meshes from arboles arbustos.zip instead of
+  // generated alpha-card tufts. High tier gets the larger grass clump; low tier
+  // keeps the smaller clump for triangle budget.
   const lush = GFX.standardMaterials;
-  const quad = new THREE.PlaneGeometry(lush ? 1.45 : 1.1, lush ? 0.9 : 0.7);
-  quad.translate(0, lush ? 0.42 : 0.35, 0);
-  const quad2 = quad.clone().rotateY(Math.PI / 2);
-  const geo = mergeGeometries([quad, quad2]);
-
-  const tuftTex = grassTuftTexture(lush ? 30 : 18);
-  const uniforms = { uPlayerPos: { value: new THREE.Vector2(1e6, 1e6) }, uFadeFar: { value: radius } };
-  const mat = lush
-    ? new THREE.MeshStandardMaterial({
-      map: tuftTex, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide, roughness: 0.9,
-    })
-    : new THREE.MeshLambertMaterial({
-      map: tuftTex, transparent: true, alphaTest: 0.35, side: THREE.DoubleSide,
-    });
-  applyGrassShader(mat, uniforms);
-
-  const im = new THREE.InstancedMesh(geo, mat, maxCount);
-  im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  im.frustumCulled = false; // ring is centered on the player; bounds churn isn't worth it
-  im.receiveShadow = true; // tufts must darken inside canopy shade, not glow through it
-  im.count = 0;
-  parent.add(im);
+  const grassUrl = MODEL_URLS.grass[lush ? 1 : 0];
+  const grassParts = extractParts(grassUrl);
+  const ims = grassParts.map((part) => {
+    const im = new THREE.InstancedMesh(part.geometry, part.material, maxCount);
+    im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    im.frustumCulled = false; // ring is centered on the player; bounds churn isn't worth it
+    im.receiveShadow = true;
+    im.count = 0;
+    parent.add(im);
+    return im;
+  });
 
   let lastX = Infinity;
   let lastZ = Infinity;
@@ -790,9 +783,9 @@ function buildGrassRing(parent: THREE.Group, seed: number): GrassRing {
     for (let i = i0; i <= i1 && n < maxCount; i++) {
       for (let j = j0; j <= j1 && n < maxCount; j++) {
         const r = hashAt(i, j, 0);
-        if (r > 0.5) continue; // ~half the cells grow a tuft
-        const x = i * step + (hashAt(i, j, 1) - 0.5) * step * 1.4;
-        const z = j * step + (hashAt(i, j, 2) - 0.5) * step * 1.4;
+        if (r > 0.12) continue; // only a few mesh clumps near the player
+        const x = i * step + (hashAt(i, j, 1) - 0.5) * step * 1.35;
+        const z = j * step + (hashAt(i, j, 2) - 0.5) * step * 1.35;
         const dx = x - px, dz = z - pz;
         if (dx * dx + dz * dz > r2) continue;
         if (Math.abs(x) > WORLD_MAX_X - 16 || z < WORLD_MIN_Z + 16 || z > WORLD_MAX_Z - 16) continue;
@@ -806,31 +799,34 @@ function buildGrassRing(parent: THREE.Group, seed: number): GrassRing {
         }
         if (nearHub) continue;
         if (roadDistance(x, z) < 3.2) continue;
-        const s = (lush ? 0.55 : 0.45) + r * (lush ? 1.1 : 1);
+        const s = (lush ? 0.8 : 0.65) + r * (lush ? 0.75 : 0.55);
         q.setFromAxisAngle(up, r * 12.4);
-        m.compose(v.set(x, h, z), q, sv.set(s, s, s));
-        im.setMatrixAt(n, m);
+        m.compose(v.set(x, h - 0.02 * s, z), q, sv.set(s, s, s));
         c.setHex(GRASS_TINT[zoneBiomeAt(z)]);
         c.offsetHSL(
           (hashAt(i, j, 3) - 0.5) * 0.05,
           (hashAt(i, j, 4) - 0.5) * 0.12,
           (hashAt(i, j, 5) - 0.5) * 0.1,
         );
-        im.setColorAt(n, c);
+        for (const im of ims) {
+          im.setMatrixAt(n, m);
+          im.setColorAt(n, c);
+        }
         n++;
       }
     }
-    im.count = n;
-    im.instanceMatrix.needsUpdate = true;
-    if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    for (const im of ims) {
+      im.count = n;
+      im.instanceMatrix.needsUpdate = true;
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    }
   };
 
   return {
     update(px: number, pz: number): void {
-      uniforms.uPlayerPos.value.set(px, pz);
       if (px > DUNGEON_X_THRESHOLD) {
         // dungeon instances live far outside the strip — no meadow indoors
-        if (im.count !== 0) im.count = 0;
+        for (const im of ims) if (im.count !== 0) im.count = 0;
         lastX = Infinity;
         return;
       }

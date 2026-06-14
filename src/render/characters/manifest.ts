@@ -25,7 +25,10 @@ export interface ClipMap {
 }
 
 export interface AttachDef {
-  url: string;
+  /** External GLB prop. Omit when cloning an existing object from the base model. */
+  url?: string;
+  /** Object/node name to clone from the assembled base model. Useful for mirrored built-in weapons. */
+  sourceObject?: string;
   bone: string;
   position?: [number, number, number];
   rotationY?: number;
@@ -43,9 +46,13 @@ export interface VisualDef {
   /** KayKit chars ship every accessory visible: non-skinned mesh nodes to KEEP.
    *  undefined = keep everything (creature GLBs have no accessories). */
   show?: string[];
+  /** non-skinned mesh nodes to hide after optional `show` filtering */
+  hide?: string[];
   attach?: AttachDef[];
   /** material tint: explicit color, 'entity' (use e.color), or none */
   tint?: number | 'entity';
+  /** recenters static multi-character GLBs whose chosen mesh is offset in a pack scene */
+  centerXZ?: boolean;
   /** lerp amount toward the tint (default 0.4) */
   tintStrength?: number;
   /** u/s at which the walk/run cycles look right (timeScale matching) */
@@ -72,6 +79,43 @@ const kaykit = (attack: string[], idle = 'Idle'): ClipMap => ({
   swim: 'Lie_Idle',
 });
 
+// Quaternius RPG Character Pack rigs (CC0). Clip names are package-native.
+const QUATERNIUS_WARRIOR: ClipMap = {
+  idle: 'Idle_Weapon', walk: 'Walk', run: 'Run_Weapon',
+  attack: ['Sword_Attack', 'Sword_Attack2'], hit: ['RecieveHit'], death: 'Death',
+  cast: 'Idle_Attacking', swim: 'Idle',
+};
+
+const QUATERNIUS_WIZARD: ClipMap = {
+  idle: 'Idle_Weapon', walk: 'Walk', run: 'Run_Weapon',
+  attack: ['Spell1', 'Spell2', 'Staff_Attack'], hit: ['RecieveHit', 'RecieveHit_2'], death: 'Death',
+  cast: 'Spell1', swim: 'Idle',
+};
+
+const QUATERNIUS_MONK: ClipMap = {
+  idle: 'Idle', walk: 'Walk', run: 'Run',
+  attack: ['Attack', 'Attack2'], hit: ['RecieveHit', 'RecieveHit_2'], death: 'Death',
+  cast: 'Idle_Attacking', swim: 'Idle',
+};
+
+const QUATERNIUS_CLERIC: ClipMap = {
+  idle: 'Idle_Weapon', walk: 'Walk', run: 'Run',
+  attack: ['Staff_Attack', 'Spell1'], hit: ['RecieveHit', 'RecieveHit_Attacking'], death: 'Death',
+  cast: 'Spell1', swim: 'Idle',
+};
+
+const QUATERNIUS_RANGER: ClipMap = {
+  idle: 'Idle_Weapon', walk: 'Walk', run: 'Run_Holding',
+  attack: ['Bow_Draw', 'Bow_Shoot'], hit: ['RecieveHit', 'RecieveHit_2'], death: 'Death',
+  cast: 'Bow_Draw', swim: 'Idle',
+};
+
+const QUATERNIUS_ROGUE: ClipMap = {
+  idle: 'Attacking_Idle', walk: 'Walk', run: 'Run',
+  attack: ['Dagger_Attack', 'Dagger_Attack2'], hit: ['RecieveHit', 'RecieveHit_2'], death: 'Death',
+  cast: 'Attacking_Idle', swim: 'Idle',
+};
+
 const skeletonClips = (attack: string[], flourish = 'Skeletons_Awaken_Standing'): ClipMap => ({
   ...kaykit(attack, 'Idle_Combat'),
   flourish,
@@ -87,6 +131,13 @@ const animal = (attack: string[]): ClipMap => ({
 const BIPED14: ClipMap = {
   idle: 'Idle', walk: 'Walk', run: 'Run', attack: ['Punch', 'Weapon'],
   hit: ['HitReact'], death: 'Death',
+};
+
+// User-provided enemiesrpg.zip blob rigs. Verified in the source glTFs: Idle,
+// Walk, Bite_Front, HitRecieve and Death are present before wiring them here.
+const RPG_BLOB9: ClipMap = {
+  idle: 'Idle', walk: 'Walk', run: 'Walk', attack: ['Bite_Front'],
+  hit: ['HitRecieve'], death: 'Death',
 };
 
 // 2023 enemy rig (goblin/giant)
@@ -111,10 +162,19 @@ const SPIDER: ClipMap = {
 // ---------------------------------------------------------------------------
 
 const CHARS = 'models/chars';
+const NPC_MODELS = 'models/chars/npcs';
+const LOW_POLY_NPCS = `${NPC_MODELS}/low_poly_characters.glb`;
 const CREATURES = 'models/creatures';
-const WEAPONS = 'models/weapons';
+const RPG_CREATURES = `${CREATURES}/rpg`;
 
 const HUMANOID_H = 2.6;
+
+// User-provided village NPC models are static GLBs: they have no embedded
+// Idle/Walk/Run clips, so we leave clip names empty and let the renderer show
+// their bind pose. These are for stationary town NPCs/dialog/vendors.
+const STATIC_NPC: ClipMap = {
+  idle: '', walk: '', run: '', attack: [], death: '',
+};
 
 // ---------------------------------------------------------------------------
 // The manifest
@@ -123,61 +183,48 @@ const HUMANOID_H = 2.6;
 export const VISUALS: Record<string, VisualDef> = {
   // -- player classes ------------------------------------------------------
   player_warrior: {
-    url: `${CHARS}/knight.glb`, height: HUMANOID_H,
-    clips: kaykit(['1H_Melee_Attack_Chop', '1H_Melee_Attack_Slice_Diagonal']),
-    show: ['1H_Sword', 'Badge_Shield', 'Knight_Helmet', 'Knight_Cape'],
+    url: `${CHARS}/quaternius_warrior.glb`, height: HUMANOID_H,
+    clips: QUATERNIUS_WARRIOR,
   },
   player_paladin: {
-    url: `${CHARS}/knight.glb`, height: HUMANOID_H,
-    clips: kaykit(['1H_Melee_Attack_Chop', '1H_Melee_Attack_Slice_Diagonal']),
-    show: ['Round_Shield', 'Knight_Helmet', 'Knight_Cape'],
-    attach: [{ url: `${WEAPONS}/axe_1handed.glb`, bone: 'handslot.r' }],
-    tint: 0xe3c06a, tintStrength: 0.5,
+    url: `${CHARS}/quaternius_cleric.glb`, height: HUMANOID_H,
+    clips: QUATERNIUS_CLERIC,
+    tint: 0xe3c06a, tintStrength: 0.28,
   },
   player_hunter: {
-    url: `${CHARS}/barbarian.glb`, height: HUMANOID_H,
-    clips: kaykit(['2H_Ranged_Shoot']),
-    show: ['Barbarian_Cape'],
-    attach: [
-      { url: `${WEAPONS}/crossbow_2handed.glb`, bone: 'handslot.r' },
-      { url: `${WEAPONS}/quiver.glb`, bone: 'chest', position: [0, 0.05, -0.28], rotationY: Math.PI },
-    ],
+    url: `${CHARS}/quaternius_ranger.glb`, height: HUMANOID_H,
+    clips: QUATERNIUS_RANGER,
   },
   player_rogue: {
-    url: `${CHARS}/rogue.glb`, height: HUMANOID_H,
-    clips: kaykit(['Dualwield_Melee_Attack_Chop']),
-    show: ['Knife', 'Knife_Offhand', 'Rogue_Cape'],
+    url: `${CHARS}/quaternius_rogue.glb`, height: HUMANOID_H,
+    clips: QUATERNIUS_ROGUE,
+    // Clone the model's own right-hand dagger setup, instead of mixing in the
+    // generic weapon GLB, so both hands use the exact same Rogue_Dagger mesh.
+    attach: [{ sourceObject: 'Weapon.R', bone: 'Fist1.L' }],
   },
   player_priest: {
-    url: `${CHARS}/mage.glb`, height: HUMANOID_H,
-    clips: kaykit(['2H_Melee_Attack_Chop']),
-    show: ['2H_Staff'],
-    tint: 0xf0e9d6, tintStrength: 0.5,
+    url: `${CHARS}/quaternius_cleric.glb`, height: HUMANOID_H,
+    clips: QUATERNIUS_CLERIC,
+    tint: 0xf0e9d6, tintStrength: 0.25,
   },
   player_shaman: {
-    url: `${CHARS}/barbarian.glb`, height: HUMANOID_H,
-    clips: kaykit(['1H_Melee_Attack_Chop', '1H_Melee_Attack_Slice_Diagonal']),
-    show: ['1H_Axe', 'Barbarian_Round_Shield', 'Barbarian_Hat'],
-    tint: 0x6f8fc9, tintStrength: 0.4,
+    url: `${CHARS}/quaternius_monk.glb`, height: HUMANOID_H,
+    clips: QUATERNIUS_MONK,
+    tint: 0x6f8fc9, tintStrength: 0.25,
   },
   player_mage: {
-    url: `${CHARS}/mage.glb`, height: HUMANOID_H,
-    clips: kaykit(['2H_Melee_Attack_Chop']),
-    // no Mage_Hat on players: the brim hides the whole body from the default
-    // chase-camera pitch (NPC mages keep theirs — they're seen from the side)
-    show: ['2H_Staff', 'Mage_Cape'],
+    url: `${CHARS}/quaternius_wizard.glb`, height: HUMANOID_H,
+    clips: QUATERNIUS_WIZARD,
   },
   player_warlock: {
-    url: `${CHARS}/mage.glb`, height: HUMANOID_H,
-    clips: kaykit(['Spellcast_Shoot']), // wand zap reads better than a staff bonk
-    show: ['1H_Wand', 'Spellbook_open'],
-    tint: 0x8d5fd3, tintStrength: 0.45,
+    url: `${CHARS}/quaternius_wizard.glb`, height: HUMANOID_H,
+    clips: QUATERNIUS_WIZARD,
+    tint: 0x8d5fd3, tintStrength: 0.28,
   },
   player_druid: {
-    url: `${CHARS}/mage.glb`, height: HUMANOID_H,
-    clips: kaykit(['2H_Melee_Attack_Chop']),
-    show: ['2H_Staff'],
-    tint: 0x7da05c, tintStrength: 0.45,
+    url: `${CHARS}/quaternius_monk.glb`, height: HUMANOID_H,
+    clips: QUATERNIUS_MONK,
+    tint: 0x7da05c, tintStrength: 0.25,
   },
 
   // -- forms ---------------------------------------------------------------
@@ -192,134 +239,134 @@ export const VISUALS: Record<string, VisualDef> = {
 
   // -- mob families --------------------------------------------------------
   mob_wolf: {
-    url: `${CREATURES}/wolf.glb`, height: 1.6,
-    clips: animal(['Attack']), tint: 'entity', tintStrength: 0.35,
+    url: `${RPG_CREATURES}/blob_dog.glb`, height: 1.25,
+    clips: RPG_BLOB9, tint: 'entity', tintStrength: 0.2,
   },
   mob_boar: {
-    url: `${CREATURES}/bull.glb`, height: 1.45,
-    clips: animal(['Attack_Headbutt']), tint: 'entity', tintStrength: 0.4,
+    url: `${RPG_CREATURES}/blob_mushnub.glb`, height: 1.35,
+    clips: RPG_BLOB9, tint: 'entity', tintStrength: 0.22,
   },
   mob_spider: {
-    url: `${CREATURES}/spider.glb`, height: 1.4,
-    clips: SPIDER, tint: 'entity', tintStrength: 0.35,
+    url: `${RPG_CREATURES}/blob_green_spiky.glb`, height: 1.55,
+    clips: RPG_BLOB9, tint: 'entity', tintStrength: 0.2,
   },
   mob_murloc: {
-    url: `${CREATURES}/frog.glb`, height: 1.7,
-    clips: BIPED14, tint: 'entity', tintStrength: 0.45,
+    url: `${RPG_CREATURES}/big_frog.glb`, height: 2.15,
+    clips: BIPED14, tint: 'entity', tintStrength: 0.18,
   },
   mob_kobold: {
-    url: `${CREATURES}/goblin.glb`, height: 2.1,
-    clips: ENEMY7, tint: 'entity', tintStrength: 0.2, // keep the green readable
+    url: `${RPG_CREATURES}/big_cactoro.glb`, height: 2.2,
+    clips: BIPED14, tint: 'entity', tintStrength: 0.16,
   },
   mob_troll: {
-    url: `${CREATURES}/orc.glb`, height: 2.4,
-    // faint wash only — 0.35 flooded every material with the template green
+    url: `${RPG_CREATURES}/big_orc.glb`, height: 2.6,
     clips: BIPED14, tint: 'entity', tintStrength: 0.12,
   },
   mob_ogre: {
-    url: `${CREATURES}/giant.glb`, height: 2.8,
-    clips: ENEMY7, tint: 'entity', tintStrength: 0.2, // skin washes pink fast
+    url: `${RPG_CREATURES}/big_yeti.glb`, height: 2.85,
+    clips: BIPED14, tint: 'entity', tintStrength: 0.14,
   },
   mob_elemental: {
-    url: `${CREATURES}/golelingevolved.glb`, height: 2.2, hover: 0.3,
+    url: `${RPG_CREATURES}/flying_goleling_evolved.glb`, height: 2.25, hover: 0.3,
     clips: FLOATING, tint: 'entity', tintStrength: 0.4,
   },
   mob_dragonkin: {
-    url: `${CREATURES}/dragonevolved.glb`, height: 2.4, hover: 0.25,
-    // light tint only — heavy washes crush the wyrm to black under the green
-    // sanctum torchlight
-    clips: FLOATING, tint: 'entity', tintStrength: 0.2,
+    url: `${RPG_CREATURES}/flying_dragon_evolved.glb`, height: 2.65, hover: 0.25,
+    clips: FLOATING, tint: 'entity', tintStrength: 0.16,
   },
 
   // -- undead (KayKit skeletons, shared 41-joint rig) ------------------------
   skel_minion: {
-    url: `${CHARS}/skeleton_minion.glb`, height: 2.5,
-    clips: skeletonClips(['1H_Melee_Attack_Chop', '1H_Melee_Attack_Slice_Diagonal']),
-    tint: 'entity', tintStrength: 0.25,
+    url: `${RPG_CREATURES}/big_orc_skull.glb`, height: 2.55,
+    clips: BIPED14, tint: 'entity', tintStrength: 0.18,
   },
   skel_warrior: {
-    url: `${CHARS}/skeleton_warrior.glb`, height: 2.5,
-    clips: skeletonClips(['1H_Melee_Attack_Chop', '1H_Melee_Attack_Slice_Diagonal']),
-    attach: [
-      { url: `${WEAPONS}/skeleton_blade.glb`, bone: 'handslot.r' },
-      { url: `${WEAPONS}/skeleton_shield_large_a.glb`, bone: 'handslot.l' },
-    ],
-    tint: 'entity', tintStrength: 0.25,
+    url: `${RPG_CREATURES}/big_blue_demon.glb`, height: 2.6,
+    clips: BIPED14, tint: 'entity', tintStrength: 0.16,
   },
   skel_rogue: {
-    url: `${CHARS}/skeleton_rogue.glb`, height: 2.5,
-    clips: skeletonClips(['1H_Melee_Attack_Chop', '1H_Melee_Attack_Slice_Diagonal']),
-    attach: [{ url: `${WEAPONS}/skeleton_axe.glb`, bone: 'handslot.r' }],
-    tint: 'entity', tintStrength: 0.25,
+    url: `${RPG_CREATURES}/big_tribal.glb`, height: 2.55,
+    clips: BIPED14, tint: 'entity', tintStrength: 0.16,
   },
   skel_mage: {
-    url: `${CHARS}/skeleton_mage.glb`, height: 2.5,
-    clips: skeletonClips(['2H_Melee_Attack_Chop']),
-    attach: [{ url: `${WEAPONS}/skeleton_staff.glb`, bone: 'handslot.r' }],
-    tint: 'entity', tintStrength: 0.25,
+    url: `${RPG_CREATURES}/flying_ghost_skull.glb`, height: 2.45, hover: 0.25,
+    clips: FLOATING, tint: 'entity', tintStrength: 0.18,
   },
   skel_boss: {
-    url: `${CHARS}/skeleton_mage.glb`, height: 2.5,
-    clips: skeletonClips(['2H_Melee_Attack_Chop'], 'Taunt'),
-    attach: [{ url: `${WEAPONS}/skeleton_staff.glb`, bone: 'handslot.r' }],
-    tint: 'entity', tintStrength: 0.25,
+    url: `${RPG_CREATURES}/big_demon.glb`, height: 2.85,
+    clips: BIPED14, tint: 'entity', tintStrength: 0.14,
   },
 
   // -- humanoid mobs (KayKit adventurers) ------------------------------------
   mob_bandit: {
-    url: `${CHARS}/rogue_hooded.glb`, height: HUMANOID_H,
-    clips: kaykit(['1H_Melee_Attack_Chop', 'Dualwield_Melee_Attack_Chop']),
-    show: ['Knife', 'Knife_Offhand'],
-    // fixed outlaw leather — entity tints (faction greens) read as friendly
-    // villagers; the dark red-brown keeps the hooded silhouette hostile
-    tint: 0x6b3a32, tintStrength: 0.3,
+    url: `${RPG_CREATURES}/big_ninja.glb`, height: 2.45,
+    clips: BIPED14,
+    tint: 0x6b3a32, tintStrength: 0.22,
   },
   mob_dark_caster: {
-    url: `${CHARS}/mage.glb`, height: HUMANOID_H,
-    clips: kaykit(['2H_Melee_Attack_Chop']),
-    show: ['2H_Staff', 'Mage_Hat'],
-    tint: 'entity', tintStrength: 0.5,
+    url: `${RPG_CREATURES}/blob_wizard.glb`, height: 1.8,
+    clips: RPG_BLOB9,
+    tint: 'entity', tintStrength: 0.25,
   },
   mob_bruiser: {
-    url: `${CHARS}/barbarian.glb`, height: HUMANOID_H,
-    clips: kaykit(['2H_Melee_Attack_Chop']),
-    show: ['2H_Axe', 'Barbarian_Hat', 'Barbarian_Cape'],
-    tint: 'entity', tintStrength: 0.3,
+    url: `${RPG_CREATURES}/big_mushroom_king.glb`, height: 2.8,
+    clips: BIPED14,
+    tint: 'entity', tintStrength: 0.16,
   },
 
   // -- NPCs ------------------------------------------------------------------
+  // Stationary village NPCs supplied by the user in C:\Users\nacho\Desktop\npcs.
+  // Most single-character files are in raised-arm bind poses, so common town
+  // roles use individual meshes selected from low_poly_characters.glb instead.
   npc_knight: {
-    url: `${CHARS}/knight.glb`, height: HUMANOID_H,
-    clips: kaykit(['1H_Melee_Attack_Chop']),
-    show: ['1H_Sword', 'Knight_Helmet', 'Knight_Cape'],
+    url: LOW_POLY_NPCS, height: HUMANOID_H,
+    clips: STATIC_NPC, show: ['DwarfGuard_GEO_CharTxt_MAT_0'], centerXZ: true,
   },
   npc_mage: {
-    url: `${CHARS}/mage.glb`, height: HUMANOID_H,
-    clips: kaykit(['2H_Melee_Attack_Chop']),
-    show: ['2H_Staff'],
-    tint: 0xc9b98a, tintStrength: 0.3, // brown-robed brothers of the chapel
+    url: LOW_POLY_NPCS, height: HUMANOID_H,
+    clips: STATIC_NPC, show: ['Face_GEO2_CharTxt_MAT_0'], centerXZ: true,
   },
   npc_smith: {
-    url: `${CHARS}/barbarian.glb`, height: HUMANOID_H,
-    clips: kaykit(['1H_Melee_Attack_Chop']),
-    show: ['1H_Axe'],
+    url: LOW_POLY_NPCS, height: HUMANOID_H,
+    clips: STATIC_NPC, show: ['Hammer_GEO_CharTxt_MAT_0', 'Hammer_GEO_Forge_MAT_0'], centerXZ: true,
+  },
+  npc_foreman: {
+    url: `${NPC_MODELS}/verdugo.glb`, height: HUMANOID_H,
+    clips: STATIC_NPC, hide: ['Object_43'],
   },
   npc_scout: {
-    url: `${CHARS}/rogue.glb`, height: HUMANOID_H,
-    clips: kaykit(['2H_Ranged_Shoot']),
-    show: ['1H_Crossbow', 'Rogue_Cape'],
+    url: LOW_POLY_NPCS, height: HUMANOID_H,
+    clips: STATIC_NPC, show: ['DwarfGuard_GEO3_CharTxt_MAT_0'], centerXZ: true,
   },
   npc_villager: {
-    url: `${CHARS}/rogue.glb`, height: HUMANOID_H,
-    clips: kaykit(['1H_Melee_Attack_Chop']),
-    show: [],
-    tint: 'entity', tintStrength: 0.35,
+    url: LOW_POLY_NPCS, height: HUMANOID_H,
+    clips: STATIC_NPC, show: ['Farmer_GEO_CharTxt_MAT_0'], centerXZ: true,
   },
   npc_villager_robed: {
-    url: `${CHARS}/mage.glb`, height: HUMANOID_H,
-    clips: kaykit(['2H_Melee_Attack_Chop']),
-    show: [],
-    tint: 'entity', tintStrength: 0.35,
+    url: LOW_POLY_NPCS, height: HUMANOID_H,
+    clips: STATIC_NPC, show: ['InnKeeper_GEO_CharTxt_MAT_0'], centerXZ: true,
+  },
+  npc_commoner_alt: {
+    // Fisher mesh was tiny and read as a cross/T-pose. Use a standalone narrow
+    // villager mesh with arms closer to the body, scaled up for readability.
+    url: `${NPC_MODELS}/character_3.glb`, height: HUMANOID_H * 1.2,
+    clips: STATIC_NPC, centerXZ: true,
+  },
+  npc_merchant: {
+    url: LOW_POLY_NPCS, height: HUMANOID_H,
+    clips: STATIC_NPC, show: ['FoodMerchant_GEO_CharTxt_MAT_0'], centerXZ: true,
+  },
+  npc_guard_soldier: {
+    url: LOW_POLY_NPCS, height: HUMANOID_H,
+    clips: STATIC_NPC, show: ['DwarfGuard_GEO4_CharTxt_MAT_0'], centerXZ: true,
+  },
+  npc_guard_soldier_alt: {
+    url: LOW_POLY_NPCS, height: HUMANOID_H,
+    clips: STATIC_NPC, show: ['DwarfGuard_GEO3_CharTxt_MAT_0'], centerXZ: true,
+  },
+  npc_guard_commander: {
+    url: LOW_POLY_NPCS, height: HUMANOID_H,
+    clips: STATIC_NPC, show: ['DwarfGuard_GEO_CharTxt_MAT_0'], centerXZ: true,
   },
 };
 
@@ -364,20 +411,20 @@ const FAMILY_KEYS: Record<string, string> = {
 
 const NPC_KEYS: Record<string, string> = {
   marshal_redbrook: 'npc_knight',
-  warden_fenwick: 'npc_knight',
-  captain_thessaly: 'npc_knight',
+  warden_fenwick: 'npc_guard_soldier',
+  captain_thessaly: 'npc_guard_commander',
   loremaster_caddis: 'npc_mage',
   smith_haldren: 'npc_smith',
-  armorer_hode: 'npc_smith',
-  foreman_odell: 'npc_smith',
+  armorer_hode: 'npc_guard_soldier',
+  foreman_odell: 'npc_foreman',
   scout_maren: 'npc_scout',
   scout_maren_highwatch: 'npc_scout',
   apothecary_lin: 'npc_villager_robed',
   herbalist_yara: 'npc_villager_robed',
   trader_wilkes: 'npc_villager',
-  fisherman_brandt: 'npc_villager',
+  fisherman_brandt: 'npc_commoner_alt',
   provisioner_hale: 'npc_villager',
-  quartermaster_bree: 'npc_villager',
+  quartermaster_bree: 'npc_guard_soldier_alt',
 };
 
 export function visualKeyFor(e: Entity): string {
@@ -400,7 +447,7 @@ export function manifestUrls(): string[] {
   const urls = new Set<string>();
   for (const def of Object.values(VISUALS)) {
     urls.add(def.url);
-    for (const a of def.attach ?? []) urls.add(a.url);
+    for (const a of def.attach ?? []) if (a.url) urls.add(a.url);
   }
   return [...urls];
 }

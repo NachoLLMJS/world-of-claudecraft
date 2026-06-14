@@ -55,6 +55,7 @@ const PROP_ASSET_DEFS: Record<string, PropAssetDef> = {
   house1: { url: '/models/props/house_1.glb', kit: 'village' },
   house2: { url: '/models/props/house_2.glb', kit: 'village', yaw: -Math.PI / 2 },
   house3: { url: '/models/props/house_3.glb', kit: 'village' },
+  castleTown: { url: '/models/props/castle_town.glb', kit: 'castleTown' },
   blacksmith: { url: '/models/props/blacksmith.glb', kit: 'village' },
   inn: { url: '/models/props/inn.glb', kit: 'village' },
   bellTower: { url: '/models/props/bell_tower.glb', kit: 'village' },
@@ -318,6 +319,23 @@ export function buildProps(seed: number): PropsResult {
       instanceBatches.set(bucketKey, bucket);
     }
     bucket.mats.push(new THREE.Matrix4().compose(tmpPos, tmpQuat, tmpScale));
+  }
+
+  // ---- Eastbrook castle town shell ----------------------------------------
+  // User-provided full castle-town GLB replaces the old loose village houses +
+  // well in zone 1. Keep it as a visual shell only for now: the old individual
+  // house/well colliders are removed from ZONE1_PROPS, but we do not add a
+  // monolithic wall collider so new players/NPC pathing do not get trapped by
+  // an unknown gate orientation.
+  {
+    const a = propAsset('castleTown');
+    const targetDiameter = 64;
+    const s = targetDiameter / Math.max(a.size.x, a.size.z);
+    const g = new THREE.Group();
+    addParts(g, 'castleTown', { scale: s });
+    g.position.set(0, ground(0, 0) - 0.16, 0);
+    g.rotation.y = Math.PI;
+    group.add(shadowed(g));
   }
 
   // ---- buildings: village houses / inn / composed chapel ------------------

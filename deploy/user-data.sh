@@ -1,5 +1,5 @@
 #!/bin/bash
-# World of Claudecraft — EC2 first-boot setup (cloud-init user data).
+# VAELORIA — EC2 first-boot setup (cloud-init user data).
 #
 # Target: Ubuntu 24.04 LTS arm64 (t4g.small or similar).
 # Fill in the two variables below, then paste this whole file into the
@@ -30,7 +30,7 @@ BACKUP_DIR="/var/backups/eastbrook"
 
 set -euo pipefail
 exec > >(tee -a /var/log/eastbrook-setup.log) 2>&1
-echo "=== World of Claudecraft setup started: $(date -u) ==="
+echo "=== VAELORIA setup started: $(date -u) ==="
 
 # --- swap: builds on a 2 GB instance want the headroom --------------------
 if [ ! -f /swapfile ]; then
@@ -107,6 +107,6 @@ BACKUP
 chmod +x /usr/local/bin/eastbrook-backup
 echo "15 3 * * * root /usr/local/bin/eastbrook-backup" > /etc/cron.d/eastbrook-backup
 
-echo "=== World of Claudecraft setup finished: $(date -u) ==="
+echo "=== VAELORIA setup finished: $(date -u) ==="
 echo "Game:   http://localhost:8787 (behind Caddy on ${SITE})"
 echo "Status: $(curl -s --max-time 5 http://localhost:8787/api/status || echo 'not up yet — check: docker compose logs game')"

@@ -122,13 +122,33 @@ export function assembleModel(def: VisualDef): THREE.Object3D {
       }
     });
   }
+  if (def.hide) {
+    const hide = new Set(def.hide);
+    root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (mesh.isMesh && !(mesh as THREE.SkinnedMesh).isSkinnedMesh && hide.has(o.name)) {
+        o.visible = false;
+      }
+    });
+  }
   for (const att of def.attach ?? []) {
     // GLTFLoader sanitizes node names (PropertyBinding strips [].:/ chars),
     // so the authored "handslot.r" arrives as "handslotr" — try both
     const bone = root.getObjectByName(att.bone)
       ?? root.getObjectByName(att.bone.replace(/[[\].:/]/g, ''));
     if (!bone) continue; // manifest/bone mismatch — ship without the prop
-    const prop = cloneSkinned(resolvedGltf(att.url).scene);
+    let prop: THREE.Object3D | null = null;
+    if (att.sourceObject) {
+      const source = root.getObjectByName(att.sourceObject)
+        ?? root.getObjectByName(att.sourceObject.replace(/[[\].:/]/g, ''));
+      if (source) {
+        prop = cloneSkinned(source);
+        prop.traverse((o) => { o.name = `${o.name}_attached`; });
+      }
+    } else if (att.url) {
+      prop = cloneSkinned(resolvedGltf(att.url).scene);
+    }
+    if (!prop) continue;
     if (att.position) prop.position.set(...att.position);
     if (att.rotationY) prop.rotation.y = att.rotationY;
     bone.add(prop);
@@ -210,6 +230,9 @@ export interface PreparedVisual {
   normScale: number;
   /** lifts feet (or hover gap) onto the pivot plane, post-scale */
   yOffset: number;
+  /** recenters selected meshes from packed/static scenes, post-scale */
+  xOffset: number;
+  zOffset: number;
   /** clip name -> clip, resolved from the source gltf */
   clips: Map<string, THREE.AnimationClip>;
   /** static idle-pose geometry in normalized space (far LOD + shadow proxy) */
@@ -251,34 +274,46 @@ export function prepareVisual(key: string): PreparedVisual {
     temp.updateMatrixWorld(true);
   }
 
-  // body bounds from the skinned meshes only (weapons would skew the height)
+  // Body bounds. Animated KayKit/Quaternius rigs use SkinnedMesh vertices, but
+  // user-provided village NPCs may be plain static Meshes with no skeleton. If
+  // we only inspect SkinnedMeshes, static GLBs produce an empty Box3 and the
+  // normalization offset becomes +/-Infinity, making the NPC invisible.
   const bounds = new THREE.Box3();
   const v = new THREE.Vector3();
   temp.traverse((o) => {
-    const sm = o as THREE.SkinnedMesh;
-    if (!sm.isSkinnedMesh || !meshChainVisible(sm, temp)) return;
-    const pos = sm.geometry.getAttribute('position');
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh || !meshChainVisible(mesh, temp)) return;
+    const pos = mesh.geometry.getAttribute('position');
+    if (!pos) return;
+    const sm = mesh as unknown as THREE.SkinnedMesh;
     for (let i = 0; i < pos.count; i++) {
       v.fromBufferAttribute(pos as THREE.BufferAttribute, i);
-      sm.applyBoneTransform(i, v);
-      v.applyMatrix4(sm.matrixWorld);
+      if (sm.isSkinnedMesh) {
+        sm.applyBoneTransform(i, v);
+        v.applyMatrix4(sm.matrixWorld);
+      } else {
+        v.applyMatrix4(mesh.matrixWorld);
+      }
       bounds.expandByPoint(v);
     }
   });
+  if (bounds.isEmpty()) bounds.set(new THREE.Vector3(-0.5, 0, -0.5), new THREE.Vector3(0.5, 1, 0.5));
   const rawHeight = Math.max(1e-3, bounds.max.y - bounds.min.y);
   const normScale = def.height / rawHeight;
+  const xOffset = def.centerXZ ? -((bounds.min.x + bounds.max.x) * 0.5) * normScale : 0;
+  const zOffset = def.centerXZ ? -((bounds.min.z + bounds.max.z) * 0.5) * normScale : 0;
   const yOffset = (def.hover ?? 0) - bounds.min.y * normScale;
   const clickRadius = Math.min(2.2, Math.max(0.5,
     Math.max(bounds.max.x, -bounds.min.x, bounds.max.z, -bounds.min.z) * normScale * 0.9));
 
   const norm = new THREE.Matrix4()
-    .makeTranslation(0, yOffset, 0)
+    .makeTranslation(xOffset, yOffset, zOffset)
     .multiply(new THREE.Matrix4().makeRotationY(def.yaw ?? 0))
     .multiply(new THREE.Matrix4().makeScale(normScale, normScale, normScale));
 
   const { geo, mats } = bakeStaticPose(temp, norm);
 
-  const prep: PreparedVisual = { key, def, normScale, yOffset, clips, idleGeo: geo, idleSrcMats: mats, clickRadius };
+  const prep: PreparedVisual = { key, def, normScale, yOffset, xOffset, zOffset, clips, idleGeo: geo, idleSrcMats: mats, clickRadius };
   prepared.set(key, prep);
   return prep;
 }

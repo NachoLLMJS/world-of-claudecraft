@@ -413,7 +413,7 @@ async function main(): Promise<void> {
 
   game.start();
   server.listen(PORT, () => {
-    console.log(`World of Claudecraft server listening on http://localhost:${PORT}`);
+    console.log(`VAELORIA server listening on http://localhost:${PORT}`);
     console.log(`  REST: /api/privy-login /api/characters /api/status`);
     console.log(`  WS:   /ws, then first message {t:"auth",token,character}`);
   });

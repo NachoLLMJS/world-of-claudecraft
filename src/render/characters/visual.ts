@@ -112,7 +112,7 @@ export class CharacterVisual {
     });
     this.modelWrap.rotation.y = prep.def.yaw ?? 0;
     this.modelWrap.scale.setScalar(prep.normScale);
-    this.modelWrap.position.y = prep.yOffset;
+    this.modelWrap.position.set(prep.xOffset, prep.yOffset, prep.zOffset);
     this.modelWrap.add(this.model);
     this.poseWrap.add(this.modelWrap);
     this.root.add(this.poseWrap);

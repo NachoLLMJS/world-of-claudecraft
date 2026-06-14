@@ -1,4 +1,4 @@
-# Deploying World of Claudecraft on AWS
+# Deploying VAELORIA on AWS
 
 > **Levy Street production** is deployed via Ansible, not this document:
 > the `eastbrook_game` role in the internal `ansible-scripts` repo runs

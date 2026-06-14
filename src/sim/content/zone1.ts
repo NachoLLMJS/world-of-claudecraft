@@ -452,13 +452,11 @@ export const ZONE1_ROADS: { x: number; z: number }[][] = [
 // ---------------------------------------------------------------------------
 
 export const ZONE1_PROPS: ZonePropsDef = {
-  buildings: [
-    { kind: 'house', x: 10, z: 12, w: 7, d: 6, rot: -0.4 },
-    { kind: 'house', x: -10, z: 10, w: 6, d: 5, rot: 0.5 },
-    { kind: 'inn', x: 12, z: -6, w: 6, d: 7, rot: 2.4 },
-    { kind: 'chapel', x: -16, z: -8, w: 5, d: 7, rot: 0.9 },
-  ],
-  wells: [{ x: 0, z: 2, r: 1.5 }],
+  // Eastbrook's loose village buildings + well have been replaced visually by
+  // the user-provided castle_town.glb shell in render/props.ts. Keep NPCs and
+  // quest/service anchors in the same central positions, now inside the walls.
+  buildings: [],
+  wells: [],
   stalls: [
     { x: -8.5, z: 3, rot: Math.PI / 2, r: 1.7 },
     { x: 9.5, z: 17.5, rot: -2.7, r: 1.7 }, // Smith Haldren's smithy stall
@@ -475,9 +473,6 @@ export const ZONE1_PROPS: ZonePropsDef = {
   campfires: [[3, -4], [65, -65], [90, -90], [-80, -60], [-61, 56]],
   mudHuts: [[-73, 59], [-78, 54], [-69, 55]],
   ruinRings: [{ x: 80, z: 78, ringR: 7, columns: 7 }],
-  fences: [
-    { x1: 16, z1: 16, x2: 22, z2: 4 },
-    { x1: -16, z1: 14, x2: -20, z2: 2 },
-  ],
+  fences: [],
   graveyards: [{ x: -14, z: -14 }],
 };
