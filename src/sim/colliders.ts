@@ -35,8 +35,53 @@ function rotY(lx: number, lz: number, rot: number): { x: number; z: number } {
 // Collider sets
 // ---------------------------------------------------------------------------
 
+// Approximate collision for the user-provided Eastbrook castle_town.glb visual
+// shell. The renderer strips the Sketchfab base plane, centers the asset on the
+// remaining walls/buildings, scales it to a ~96yd footprint, and rotates it by
+// PI; these simple OBBs match that transformed footprint closely enough for
+// gameplay while leaving the south gate/plaza walkable.
+const castleBuilding = (x: number, z: number, hw: number, hd: number): Collider => ({
+  type: 'obb', x, z,
+  // GLB bounds include roof overhangs/awnings; use a slimmer walk collider so
+  // players/NPCs don't feel like they hit invisible fat walls.
+  hw: hw * 0.62, hd: hd * 0.62, rot: 0,
+});
+
+const castleWall = (x: number, z: number, length: number, rot: number): Collider => ({
+  type: 'obb', x, z,
+  // Use the real transformed GLB wall segment orientation instead of a fake
+  // rectangular perimeter. A slim depth keeps the wall solid without eating the
+  // walkable streets beside it.
+  hw: length / 2, hd: 1.65, rot,
+});
+
+const EASTBROOK_CASTLE_COLLIDERS: Collider[] = [
+  // Actual long wall segments extracted from castle_town.glb after the same
+  // center/scale/PI transform used by the renderer. This preserves the angled
+  // wall shape and leaves the real gate gaps open.
+  castleWall(-9.7, 32.4, 31.5, 0.846),
+  castleWall(-30.8, 31.7, 31.5, -0.901),
+  castleWall(25.1, -29.5, 31.5, -0.379),
+  castleWall(35.1, -8.1, 31.5, -1.939),
+  castleWall(14.4, 13.5, 31.5, -2.717),
+  castleWall(-12.9, -27.1, 21.0, 0.781),
+  castleWall(-33.8, 11.4, 21.0, 0.826),
+  castleWall(-23.9, -7.5, 21.0, 1.341),
+
+  // major castle-town buildings / towers (slim approximations of GLB parts)
+  castleBuilding(-22, 18.6, 14.3, 13.4),
+  castleBuilding(9.1, -17.9, 4.9, 6.4),
+  castleBuilding(-17.1, -0.8, 5.0, 5.1),
+  castleBuilding(6.1, 1.4, 4.9, 5.2),
+  castleBuilding(-1.6, 9.5, 5.1, 4.7),
+  castleBuilding(5.4, -27.1, 4.5, 5.2),
+  castleBuilding(-7.6, -7.7, 4.1, 3.8),
+  castleBuilding(3.3, -35.3, 5.3, 3.0),
+  castleBuilding(-6, -22.5, 3.0, 4.9),
+];
+
 function staticWorldColliders(seed: number): Collider[] {
-  const out: Collider[] = [];
+  const out: Collider[] = [...EASTBROOK_CASTLE_COLLIDERS];
 
   for (const b of PROPS.buildings) {
     out.push({ type: 'obb', x: b.x, z: b.z, hw: b.w / 2, hd: b.d / 2, rot: b.rot });

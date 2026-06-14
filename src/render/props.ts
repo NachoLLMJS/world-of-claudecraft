@@ -47,7 +47,7 @@ interface PropAssetDef {
   kit: string;
   /** pre-rotation (radians) baked into geometry so the door/opening faces +z */
   yaw?: number;
-  /** drop parts whose material name matches (e.g. the market cart's awning) */
+  /** drop parts whose material or mesh name matches (e.g. the market cart's awning) */
   strip?: RegExp;
 }
 
@@ -55,7 +55,9 @@ const PROP_ASSET_DEFS: Record<string, PropAssetDef> = {
   house1: { url: '/models/props/house_1.glb', kit: 'village' },
   house2: { url: '/models/props/house_2.glb', kit: 'village', yaw: -Math.PI / 2 },
   house3: { url: '/models/props/house_3.glb', kit: 'village' },
-  castleTown: { url: '/models/props/castle_town.glb', kit: 'castleTown' },
+  // Strip the huge pale-green Sketchfab base plane plus embedded NPC/animal
+  // meshes from the source diorama; we use our own live NPCs instead.
+  castleTown: { url: '/models/props/castle_town.glb', kit: 'castleTown', strip: /^(65\.002|Object_339|CharTxt_MAT|Animals_MAT)$/ },
   blacksmith: { url: '/models/props/blacksmith.glb', kit: 'village' },
   inn: { url: '/models/props/inn.glb', kit: 'village' },
   bellTower: { url: '/models/props/bell_tower.glb', kit: 'village' },
@@ -204,7 +206,7 @@ function propAsset(key: PropKey): PropAsset {
     const mesh = o as THREE.Mesh;
     if (!mesh.isMesh) return;
     const srcMat = mesh.material as THREE.Material;
-    if (def.strip?.test(srcMat.name)) return;
+    if (def.strip?.test(srcMat.name) || def.strip?.test(mesh.name)) return;
     const src = mesh.geometry;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', toFloatAttr(src.getAttribute('position'), 3));
@@ -323,17 +325,17 @@ export function buildProps(seed: number): PropsResult {
 
   // ---- Eastbrook castle town shell ----------------------------------------
   // User-provided full castle-town GLB replaces the old loose village houses +
-  // well in zone 1. Keep it as a visual shell only for now: the old individual
-  // house/well colliders are removed from ZONE1_PROPS, but we do not add a
-  // monolithic wall collider so new players/NPC pathing do not get trapped by
-  // an unknown gate orientation.
+  // well in zone 1. The asset's huge green Sketchfab base is stripped at load
+  // time, so the shell centers on the actual walls/interior instead of the
+  // authoring plane. Keep it visual-only for now: no monolithic wall collider,
+  // so the gate/pathing cannot trap new players or NPCs.
   {
     const a = propAsset('castleTown');
-    const targetDiameter = 64;
+    const targetDiameter = 96;
     const s = targetDiameter / Math.max(a.size.x, a.size.z);
     const g = new THREE.Group();
     addParts(g, 'castleTown', { scale: s });
-    g.position.set(0, ground(0, 0) - 0.16, 0);
+    g.position.set(0, ground(0, 0) - 0.08, 0);
     g.rotation.y = Math.PI;
     group.add(shadowed(g));
   }

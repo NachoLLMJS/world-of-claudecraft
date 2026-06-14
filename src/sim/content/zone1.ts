@@ -4,7 +4,7 @@
 
 import type { CampDef, GroundObjectDef, MobTemplate, NpcDef, QuestDef, ZoneDef, ZonePropsDef } from '../types';
 
-export const TOWN_RADIUS = 26;
+export const TOWN_RADIUS = 48;
 export const GRAVEYARD_POS = { x: -12, z: -14 };
 // Basin carved into the heightfield. Pushed to the far northeast so its
 // shoreline meets the fishing dock and the murloc camp instead of drowning them.
@@ -147,7 +147,9 @@ export const ZONE1_MOBS: Record<string, MobTemplate> = {
 export const ZONE1_NPCS: Record<string, NpcDef> = {
   marshal_redbrook: {
     id: 'marshal_redbrook', name: 'Marshal Redbrook', title: 'Town Marshal',
-    pos: { x: 4, z: 6 }, facing: Math.PI, color: 0xb7950b,
+    // moved out of the castle-town house footprint and onto the open central
+    // street/plaza so he no longer clips through the imported building mesh.
+    pos: { x: 0, z: 1.5 }, facing: 2.35, color: 0xb7950b,
     questIds: ['q_wolves', 'q_greyjaw', 'q_bandits', 'q_ringleader'],
     greeting: 'Keep your blade close, $C. The Vale is not what it was.',
   },
@@ -175,7 +177,9 @@ export const ZONE1_NPCS: Record<string, NpcDef> = {
   },
   smith_haldren: {
     id: 'smith_haldren', name: 'Smith Haldren', title: 'Armorer & Weaponsmith',
-    pos: { x: 7, z: 16.5 }, facing: -2.7, color: 0x707b7c,
+    // moved out of the imported castle-town wall/building footprint and onto
+    // an open market-street spot near the centre so the vendor remains visible.
+    pos: { x: 18, z: -4 }, facing: 2.2, color: 0x707b7c,
     questIds: [],
     vendorItems: [
       'eastbrook_arming_sword', 'bronzework_mace', 'vale_carving_knife', 'hickory_shortstaff',
@@ -389,9 +393,11 @@ export const ZONE1_QUEST_ORDER = [
 
 export const ZONE1_CAMPS: CampDef[] = [
   // Wolves: north woods
-  { mobId: 'forest_wolf', center: { x: -15, z: 55 }, radius: 22, count: 7 },
-  { mobId: 'forest_wolf', center: { x: 20, z: 70 }, radius: 20, count: 6 },
-  { mobId: 'old_greyjaw', center: { x: 0, z: 95 }, radius: 8, count: 1 },
+  // shifted north after the larger castle-town wall gained collision; the old
+  // radii overlapped the walls and could trap wolves on the town perimeter.
+  { mobId: 'forest_wolf', center: { x: -15, z: 78 }, radius: 18, count: 7 },
+  { mobId: 'forest_wolf', center: { x: 20, z: 88 }, radius: 18, count: 6 },
+  { mobId: 'old_greyjaw', center: { x: 0, z: 110 }, radius: 8, count: 1 },
   // Boars: east meadow
   { mobId: 'wild_boar', center: { x: 55, z: 12 }, radius: 22, count: 6 },
   { mobId: 'wild_boar', center: { x: 80, z: -15 }, radius: 18, count: 5 },
