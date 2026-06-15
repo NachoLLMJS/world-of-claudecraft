@@ -643,13 +643,7 @@ export class Renderer {
       // broader scan misses the current instance for a frame or a future index.
       const dungeon = dungeonAt(px);
       if (dungeon) {
-        let bestSlot = 0;
-        let bestDz = Infinity;
-        for (let i = 0; i < INSTANCE_SLOT_COUNT; i++) {
-          const o = instanceOrigin(dungeon.index, i);
-          const dz = Math.abs(this.sim.player.pos.z - o.z);
-          if (dz < bestDz) { bestDz = dz; bestSlot = i; }
-        }
+        const bestSlot = Math.max(0, Math.round((this.sim.player.pos.z + 1250) / 500));
         const key = `${dungeon.id}:${bestSlot}`;
         if (!this.builtInteriors.has(key)) {
           const o = instanceOrigin(dungeon.index, bestSlot);

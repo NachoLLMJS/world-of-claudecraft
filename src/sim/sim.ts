@@ -306,7 +306,8 @@ export class Sim {
         door.lootable = true; // interactable
         this.addEntity(door);
       }
-      for (let i = 0; i < INSTANCE_SLOT_COUNT; i++) {
+      const slotCount = dungeon.id === 'tutorial_crypt' ? 24 : INSTANCE_SLOT_COUNT;
+      for (let i = 0; i < slotCount; i++) {
         this.instances.push({ dungeonId: dungeon.id, slot: i, partyKey: null, mobIds: [], exitId: null, emptyFor: 0 });
       }
     }
@@ -3847,7 +3848,10 @@ export class Sim {
   // Dungeons: party-instanced elite content (the Hollow Crypt and friends)
   // -------------------------------------------------------------------------
 
-  private instanceKeyFor(pid: number): string {
+  private instanceKeyFor(pid: number, dungeonId?: string): string {
+    // Tutorial is always personal. Parties/groups can start after the first
+    // city, but onboarding should never show other players in the same room.
+    if (dungeonId === 'tutorial_crypt') return `tutorial:${pid}`;
     const party = this.partyOf(pid);
     return party ? `party:${party.id}` : `solo:${pid}`;
   }
@@ -3893,7 +3897,7 @@ export class Sim {
     const r = this.resolve(pid);
     const dungeon = DUNGEONS[dungeonId];
     if (!r || !dungeon || r.e.dead) return;
-    const key = this.instanceKeyFor(r.meta.entityId);
+    const key = this.instanceKeyFor(r.meta.entityId, dungeonId);
     let inst = this.instances.find((i) => i.dungeonId === dungeonId && i.partyKey === key);
     if (!inst) {
       inst = this.instances.find((i) => i.dungeonId === dungeonId && i.partyKey === null);
