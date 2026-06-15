@@ -4,6 +4,22 @@
 import type { DungeonDef, DungeonSpawn, MobTemplate } from '../types';
 
 export const DUNGEON_MOBS: Record<string, MobTemplate> = {
+  // ---- Tutorial Crypt (solo onboarding) ----
+  tutorial_crawler: {
+    id: 'tutorial_crawler', name: 'Training Crawler', minLevel: 1, maxLevel: 1, family: 'beast',
+    hpBase: 10, hpPerLevel: 2, dmgBase: 1, dmgPerLevel: 0.5, attackSpeed: 2.4,
+    armorPerLevel: 1, moveSpeed: 5.5, aggroRadius: 7,
+    loot: [{ copper: 2, chance: 1 }],
+    scale: 0.7, color: 0x8f6f46,
+  },
+  tutorial_sentinel: {
+    id: 'tutorial_sentinel', name: 'Training Sentinel', minLevel: 1, maxLevel: 1, family: 'kobold',
+    hpBase: 18, hpPerLevel: 3, dmgBase: 2, dmgPerLevel: 0.5, attackSpeed: 2.6,
+    armorPerLevel: 2, moveSpeed: 5.0, aggroRadius: 8,
+    loot: [{ copper: 6, chance: 1 }, { itemId: 'linen_scrap', chance: 0.4 }],
+    scale: 0.8, color: 0xd6b36a,
+  },
+
   // ---- The Hollow Crypt (5-player elite instance) ----
   crypt_shambler: {
     id: 'crypt_shambler', name: 'Crypt Skullstalker', minLevel: 7, maxLevel: 8, family: 'undead', elite: true,
@@ -163,6 +179,14 @@ const CRYPT_SPAWN_LIST: DungeonSpawn[] = [
   { mobId: 'crypt_shambler', x: 4, z: 96 },
 ];
 
+// Short onboarding path: tiny solo mobs placed down the existing crypt nave.
+// The player starts at z=4 and the exit portal sits at the back dais.
+const TUTORIAL_SPAWN_LIST: DungeonSpawn[] = [
+  { mobId: 'tutorial_crawler', x: -3, z: 20 },
+  { mobId: 'tutorial_crawler', x: 3, z: 34 },
+  { mobId: 'tutorial_sentinel', x: 0, z: 58 },
+];
+
 // Sunken Bastion: same 13-spawn pacing as the crypt — packs of 2 elites,
 // the Knight-Commander as miniboss, then Vael on the dais with two guards.
 const BASTION_SPAWN_LIST: DungeonSpawn[] = [
@@ -209,6 +233,21 @@ const SANCTUM_SPAWN_LIST: DungeonSpawn[] = [
 ];
 
 export const DUNGEON_DEFS: Record<string, DungeonDef> = {
+  tutorial_crypt: {
+    id: 'tutorial_crypt',
+    name: 'Training Crypt',
+    index: 3,
+    // No overworld door is spawned for this id; doorPos is where the final
+    // tutorial portal returns the player after onboarding.
+    doorPos: { x: 2, z: 2 },
+    entry: { x: 0, z: 4 },
+    exitOffset: { x: 0, z: 104 },
+    spawns: TUTORIAL_SPAWN_LIST,
+    interior: 'crypt',
+    suggestedPlayers: 1,
+    enterText: 'Tutorial: move with WASD, click enemies to target, use your hotbar abilities, then take the portal at the end.',
+    leaveText: 'Tutorial complete. Welcome to the city.',
+  },
   hollow_crypt: {
     id: 'hollow_crypt',
     name: 'The Hollow Crypt',

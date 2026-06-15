@@ -676,7 +676,7 @@ export class Hud {
       el.style.display = 'block';
       return;
     }
-    if (this.nearFishableWater(p)) {
+    if (p.pos.x <= DUNGEON_X_THRESHOLD && this.nearFishableWater(p)) {
       el.innerHTML = '<span class="key">F</span> Fish';
       el.style.display = 'block';
       return;
@@ -685,6 +685,7 @@ export class Hud {
   }
 
   private nearFishableWater(p: Entity): boolean {
+    if (p.pos.x > DUNGEON_X_THRESHOLD) return false;
     if (terrainHeight(p.pos.x, p.pos.z, this.sim.cfg.seed) < WATER_LEVEL - 0.05) return false;
     for (let r = 1.25; r <= FISHING_PROMPT_RANGE; r += 0.45) {
       for (let i = 0; i < 32; i++) {

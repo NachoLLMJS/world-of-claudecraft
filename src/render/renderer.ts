@@ -4,7 +4,7 @@ import type { IWorld } from '../world_api';
 import { groundHeight, WATER_LEVEL, zoneBiomeAt } from '../sim/world';
 import {
   MOBS, ABILITIES, DUNGEON_X_THRESHOLD, DUNGEON_LIST, QUESTS,
-  instanceOrigin, INSTANCE_SLOT_COUNT,
+  dungeonAt, instanceOrigin, INSTANCE_SLOT_COUNT,
 } from '../sim/data';
 import type { BiomeId } from '../sim/types';
 import { AnimState, CharacterVisual, createCharacterVisual } from './characters';
@@ -638,7 +638,27 @@ export class Renderer {
   private updateAmbience(px: number, camY: number, dt: number): void {
     const inside = px > DUNGEON_X_THRESHOLD;
     if (inside) {
-      // build the interior copy the player is standing in
+      // Build exactly the interior copy the player is standing in. This avoids
+      // tutorial/new dungeon bands appearing as empty far-map corners if a
+      // broader scan misses the current instance for a frame or a future index.
+      const dungeon = dungeonAt(px);
+      if (dungeon) {
+        let bestSlot = 0;
+        let bestDz = Infinity;
+        for (let i = 0; i < INSTANCE_SLOT_COUNT; i++) {
+          const o = instanceOrigin(dungeon.index, i);
+          const dz = Math.abs(this.sim.player.pos.z - o.z);
+          if (dz < bestDz) { bestDz = dz; bestSlot = i; }
+        }
+        const key = `${dungeon.id}:${bestSlot}`;
+        if (!this.builtInteriors.has(key)) {
+          const o = instanceOrigin(dungeon.index, bestSlot);
+          this.builtInteriors.add(key);
+          this.buildInterior(dungeon.interior, o.x, o.z);
+        }
+      }
+      // Opportunistically prebuild any nearby existing copy too (smooths party
+      // transitions and keeps the old behaviour for adjacent instance slots).
       for (const dungeon of DUNGEON_LIST) {
         for (let i = 0; i < INSTANCE_SLOT_COUNT; i++) {
           const key = `${dungeon.id}:${i}`;

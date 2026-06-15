@@ -243,6 +243,8 @@ export class DungeonInteriors {
   // (instanceOrigin in sim/data.ts: 900 + index*600) says which dungeon.
   private variantFor(interior: string, ox: number): Variant {
     if (interior === 'sanctum') return 'sanctum';
+    const tutorialX = instanceOrigin(3, 0).x;
+    if (Math.abs(ox - tutorialX) < 300) return 'crypt';
     const bastionX = instanceOrigin(1, 0).x;
     return ox >= (instanceOrigin(0, 0).x + bastionX) / 2 ? 'bastion' : 'crypt';
   }

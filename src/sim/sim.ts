@@ -298,12 +298,14 @@ export class Sim {
 
     // Dungeon entrances + their private instance slots
     for (const dungeon of DUNGEON_LIST) {
-      const door = createGroundObject(this.nextId++, '', dungeon.name, this.groundPos(dungeon.doorPos.x, dungeon.doorPos.z));
-      door.templateId = 'dungeon_door';
-      door.dungeonId = dungeon.id;
-      door.objectItemId = null;
-      door.lootable = true; // interactable
-      this.addEntity(door);
+      if (dungeon.id !== 'tutorial_crypt') {
+        const door = createGroundObject(this.nextId++, '', dungeon.name, this.groundPos(dungeon.doorPos.x, dungeon.doorPos.z));
+        door.templateId = 'dungeon_door';
+        door.dungeonId = dungeon.id;
+        door.objectItemId = null;
+        door.lootable = true; // interactable
+        this.addEntity(door);
+      }
       for (let i = 0; i < INSTANCE_SLOT_COUNT; i++) {
         this.instances.push({ dungeonId: dungeon.id, slot: i, partyKey: null, mobIds: [], exitId: null, emptyFor: 0 });
       }
@@ -415,6 +417,7 @@ export class Sim {
         : classDef.resourceType === 'energy' ? 100 : 0;
     }
     player.swingTimer = 0;
+    if (!opts?.state) this.enterDungeon('tutorial_crypt', player.id);
     return player.id;
   }
 
@@ -923,6 +926,7 @@ export class Sim {
   }
 
   private isOutsidePlayable(x: number, z: number): boolean {
+    if (x > DUNGEON_X_THRESHOLD) return false;
     return x < WORLD_MIN_X + BODY_RADIUS || x > WORLD_MAX_X - BODY_RADIUS
       || z < WORLD_MIN_Z + BODY_RADIUS || z > WORLD_MAX_Z - BODY_RADIUS;
   }
@@ -1030,11 +1034,13 @@ export class Sim {
   }
 
   private isFishingWater(x: number, z: number): boolean {
+    if (x > DUNGEON_X_THRESHOLD) return false;
     if (x < WORLD_MIN_X || x > WORLD_MAX_X || z < WORLD_MIN_Z || z > WORLD_MAX_Z) return true;
     return groundHeight(x, z, this.cfg.seed) < WATER_LEVEL - 0.15;
   }
 
   private nearestFishingSpot(p: Entity): { x: number; z: number } | null {
+    if (p.pos.x > DUNGEON_X_THRESHOLD) return null;
     if (groundHeight(p.pos.x, p.pos.z, this.cfg.seed) < WATER_LEVEL - 0.05) return null;
     let best: { x: number; z: number; d: number } | null = null;
     for (let r = 1.25; r <= FISHING_RANGE; r += 0.45) {
@@ -3895,13 +3901,14 @@ export class Sim {
       this.claimInstance(inst, key);
     }
     const party = this.partyOf(r.meta.entityId);
-    if (!party || party.members.length < dungeon.suggestedPlayers) {
+    if (dungeon.suggestedPlayers > 1 && (!party || party.members.length < dungeon.suggestedPlayers)) {
       this.emit({ type: 'log', text: `${dungeon.name} is meant for a full party of ${dungeon.suggestedPlayers}. Tread carefully.`, color: '#f96', pid: r.meta.entityId });
     }
     const origin = this.instanceOriginOf(inst);
     const p = r.e;
     p.pos = this.groundPos(origin.x + dungeon.entry.x, origin.z + dungeon.entry.z);
     p.prevPos = { ...p.pos };
+    p.dungeonId = dungeon.id;
     this.rebucket(p);
     p.facing = 0;
     p.targetId = null;
@@ -3920,6 +3927,7 @@ export class Sim {
     if (!dungeon) return;
     p.pos = this.groundPos(dungeon.doorPos.x, dungeon.doorPos.z - 4);
     p.prevPos = { ...p.pos };
+    p.dungeonId = null;
     this.rebucket(p);
     p.targetId = null;
     p.autoAttack = false;
