@@ -597,6 +597,88 @@ describe('RL interface', () => {
   });
 });
 
+describe('farm persistence', () => {
+  it('rebinds saved farms to the reconnecting player and removes logout ghosts', () => {
+    const sim = new Sim({ seed: 42, playerClass: 'warrior', noPlayer: true });
+    const firstPid = sim.addPlayer('warrior', 'Farmer');
+    const first = sim.entities.get(firstPid)!;
+    first.pos.x = 50;
+    first.pos.z = 50;
+    first.prevPos = { ...first.pos };
+    sim.farms.push({ id: 'farm_reconnect', ownerPid: firstPid, x: 50, z: 50, facing: 0 });
+
+    const state = sim.serializeCharacter(firstPid)!;
+    expect(state.farms).toEqual([{ id: 'farm_reconnect', ownerPid: undefined, x: 50, z: 50, facing: 0 }]);
+
+    sim.removePlayer(firstPid);
+    expect(sim.farms).toEqual([]);
+
+    const secondPid = sim.addPlayer('warrior', 'Farmer', { state });
+    expect(sim.farms).toEqual([{ id: 'farm_reconnect', ownerPid: secondPid, x: 50, z: 50, facing: 0 }]);
+
+    sim.pickUpFarm('farm_reconnect', secondPid);
+    expect(sim.farms).toEqual([]);
+    expect(sim.countItem('farmstead_deed', secondPid)).toBe(1);
+  });
+
+  it('persists stable account and character farm owners for online characters', () => {
+    const sim = new Sim({ seed: 42, playerClass: 'warrior', noPlayer: true });
+    const pid = sim.addPlayer('warrior', 'Farmer', { accountId: 77, characterId: 1234 });
+    sim.farms.push({ id: 'farm_stable', ownerPid: pid, ownerAccountId: 77, ownerCharacterId: 1234, x: 40, z: 42, facing: 1 });
+
+    const state = sim.serializeCharacter(pid)!;
+
+    expect(state.farms).toEqual([{ id: 'farm_stable', ownerPid: undefined, ownerAccountId: 77, ownerCharacterId: 1234, x: 40, z: 42, facing: 1 }]);
+  });
+
+  it('claims an existing saved farm row instead of leaving an old-owner duplicate', () => {
+    const sim = new Sim({ seed: 42, playerClass: 'warrior', noPlayer: true });
+    sim.farms.push({ id: 'farm_reconnect', ownerPid: 9999, ownerAccountId: 77, ownerCharacterId: 1234, x: 50, z: 50, facing: 0 });
+
+    const pid = sim.addPlayer('warrior', 'Farmer', {
+      accountId: 77,
+      characterId: 1234,
+      state: {
+        level: 1,
+        xp: 0,
+        copper: 0,
+        hp: 100,
+        resource: 0,
+        pos: { x: 50, z: 50 },
+        facing: 0,
+        equipment: {},
+        inventory: [],
+        farms: [{ id: 'farm_reconnect', ownerAccountId: 77, ownerCharacterId: 1234, x: 50, z: 50, facing: 0 }],
+        questLog: [],
+        questsDone: [],
+      },
+    });
+
+    expect(sim.farms).toEqual([{ id: 'farm_reconnect', ownerPid: pid, ownerAccountId: 77, ownerCharacterId: 1234, x: 50, z: 50, facing: 0 }]);
+    sim.pickUpFarm('farm_reconnect', pid);
+    expect(sim.countItem('farmstead_deed', pid)).toBe(1);
+  });
+
+  it('uses character ownership first so another character on the same account cannot pick it up', () => {
+    const sim = new Sim({ seed: 42, playerClass: 'warrior', noPlayer: true });
+    const owner = sim.addPlayer('warrior', 'Owner', { accountId: 77, characterId: 1001 });
+    const other = sim.addPlayer('warrior', 'Alt', { accountId: 77, characterId: 1002 });
+    const ownerEntity = sim.entities.get(owner)!;
+    const otherEntity = sim.entities.get(other)!;
+    ownerEntity.pos.x = 50; ownerEntity.pos.z = 50; ownerEntity.prevPos = { ...ownerEntity.pos };
+    otherEntity.pos.x = 50; otherEntity.pos.z = 50; otherEntity.prevPos = { ...otherEntity.pos };
+    sim.farms.push({ id: 'farm_owner', ownerPid: owner, ownerAccountId: 77, ownerCharacterId: 1001, x: 50, z: 50, facing: 0 });
+
+    sim.pickUpFarm('farm_owner', other);
+    expect(sim.farms).toHaveLength(1);
+    expect(sim.countItem('farmstead_deed', other)).toBe(0);
+
+    sim.pickUpFarm('farm_owner', owner);
+    expect(sim.farms).toEqual([]);
+    expect(sim.countItem('farmstead_deed', owner)).toBe(1);
+  });
+});
+
 describe('gm characters', () => {
   it('gm flag makes a player invulnerable through every damage path', () => {
     const sim = makeSim('warrior');

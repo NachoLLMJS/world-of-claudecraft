@@ -94,6 +94,8 @@ export interface InvSlot {
 export interface FarmPlot {
   id: string;
   ownerPid?: number;
+  ownerAccountId?: number;
+  ownerCharacterId?: number;
   x: number;
   z: number;
   facing: number;

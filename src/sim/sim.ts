@@ -133,6 +133,8 @@ export interface SentChat {
 // everything that belongs to the character sheet.
 export interface PlayerMeta {
   entityId: number;
+  accountId?: number;
+  characterId?: number;
   cls: PlayerClass;
   name: string;
   moveInput: MoveInput;
@@ -324,7 +326,7 @@ export class Sim {
   // Players: join / leave / persistence
   // -------------------------------------------------------------------------
 
-  addPlayer(cls: PlayerClass, name: string, opts?: { autoEquip?: boolean; state?: CharacterState }): number {
+  addPlayer(cls: PlayerClass, name: string, opts?: { autoEquip?: boolean; state?: CharacterState; accountId?: number; characterId?: number }): number {
     // Characters saved inside a dungeon instance rejoin at its entrance —
     // their old instance is gone (or belongs to someone else) by now.
     let savedPos = opts?.state?.pos ?? null;
@@ -340,6 +342,8 @@ export class Sim {
     const classDef = CLASSES[cls];
     const meta: PlayerMeta = {
       entityId: player.id,
+      accountId: opts?.accountId,
+      characterId: opts?.characterId,
       cls,
       name,
       moveInput: emptyMoveInput(),
@@ -365,7 +369,17 @@ export class Sim {
       meta.copper = s.copper;
       meta.equipment = { ...s.equipment };
       meta.inventory = s.inventory.map((i) => ({ ...i }));
-      this.farms.push(...(s.farms ?? []).map((f) => ({ ...f, ownerPid: player.id })));
+      for (const farm of s.farms ?? []) {
+        const restored = {
+          ...farm,
+          ownerPid: player.id,
+          ownerAccountId: farm.ownerAccountId ?? opts?.accountId,
+          ownerCharacterId: farm.ownerCharacterId ?? opts?.characterId,
+        };
+        const existing = this.farms.findIndex((f) => f.id === farm.id);
+        if (existing >= 0) this.farms[existing] = restored;
+        else this.farms.push(restored);
+      }
       for (const q of s.questLog) {
         if (q.state !== 'done') meta.questLog.set(q.questId, { questId: q.questId, counts: [...q.counts], state: q.state });
       }
@@ -424,6 +438,11 @@ export class Sim {
     this.players.delete(pid);
     this.chatTokens.delete(pid);
     if (this.primaryId === pid) this.primaryId = this.players.size > 0 ? [...this.players.keys()][0] : -1;
+    const leavingFarms = this.farms.filter((f) => this.farmBelongsTo(f, meta));
+    if (leavingFarms.length > 0) {
+      this.farms = this.farms.filter((f) => !this.farmBelongsTo(f, meta));
+      for (const farm of leavingFarms) this.emit({ type: 'farmRemoved', farmId: farm.id });
+    }
   }
 
   serializeCharacter(pid: number): CharacterState | null {
@@ -440,7 +459,7 @@ export class Sim {
       facing: e.facing,
       equipment: { ...meta.equipment },
       inventory: meta.inventory.map((i) => ({ ...i })),
-      farms: this.farms.filter((f) => f.ownerPid === pid).map((f) => ({ ...f, ownerPid: undefined })),
+      farms: this.farms.filter((f) => this.farmBelongsTo(f, meta)).map((f) => ({ ...f, ownerPid: undefined })),
       questLog: [...meta.questLog.values()].map((q) => ({ questId: q.questId, counts: [...q.counts], state: q.state })),
       questsDone: [...meta.questsDone],
     };
@@ -496,6 +515,20 @@ export class Sim {
 
   meta(pid: number): PlayerMeta | null {
     return this.players.get(pid) ?? null;
+  }
+
+  private farmBelongsTo(farm: FarmPlot, meta: PlayerMeta): boolean {
+    // Most durable online identity: character id is a DB primary key tied to
+    // the authenticated account (Privy wallet/Twitter/etc.). Prefer it over
+    // account id so alts on the same wallet/account do not share farms unless
+    // we intentionally build account-wide housing later.
+    if (farm.ownerCharacterId !== undefined && meta.characterId !== undefined) return farm.ownerCharacterId === meta.characterId;
+    // Account id is the migration/backup identity for any farm saved before a
+    // character id was attached, or for future account-wide ownership flows.
+    if (farm.ownerAccountId !== undefined && meta.accountId !== undefined) return farm.ownerAccountId === meta.accountId;
+    // Legacy/offline fallback: ownerPid exists only for the current process;
+    // undefined ownerPid is accepted for old per-character saves during load.
+    return farm.ownerPid === undefined || farm.ownerPid === meta.entityId;
   }
 
   private resolve(pid?: number): { meta: PlayerMeta; e: Entity } | null {
@@ -2819,6 +2852,8 @@ export class Sim {
     const farm: FarmPlot = {
       id: `farm_${Date.now().toString(36)}_${meta.entityId.toString(36)}`,
       ownerPid: meta.entityId,
+      ownerAccountId: meta.accountId,
+      ownerCharacterId: meta.characterId,
       x: p.pos.x,
       z: p.pos.z,
       facing: p.facing,
@@ -2833,7 +2868,8 @@ export class Sim {
     let best: FarmPlot | null = null;
     let bestD = FARM_PICKUP_RANGE;
     for (const f of this.farms) {
-      if (f.ownerPid !== undefined && f.ownerPid !== p.id) continue;
+      const meta = this.players.get(p.id);
+      if (meta && !this.farmBelongsTo(f, meta)) continue;
       const d = Math.hypot(f.x - p.pos.x, f.z - p.pos.z);
       if (d <= bestD) { bestD = d; best = f; }
     }
@@ -2847,7 +2883,7 @@ export class Sim {
     if (p.dead) return;
     const farm = this.farms.find((f) => f.id === farmId);
     if (!farm) return;
-    if (farm.ownerPid !== undefined && farm.ownerPid !== meta.entityId) {
+    if (!this.farmBelongsTo(farm, meta)) {
       this.error(meta.entityId, "That isn't your farm.");
       return;
     }

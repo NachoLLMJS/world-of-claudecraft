@@ -391,7 +391,7 @@ export class GameServer {
     for (const c of this.clients.values()) {
       if (c.characterId === characterId) return { error: 'character already in world' };
     }
-    const pid = this.sim.addPlayer(cls, name, { state: state ?? undefined });
+    const pid = this.sim.addPlayer(cls, name, { state: state ?? undefined, accountId, characterId });
     if (isGm) {
       // GM characters: invulnerable, and always at the level cap (the row is
       // created without state, so the first join levels them up)
@@ -881,7 +881,15 @@ export class GameServer {
     maybe('equip', meta.equipment);
     maybe('qlog', [...meta.questLog.values()]);
     maybe('qdone', [...meta.questsDone]);
-    maybe('farms', this.sim.farms);
+    // Do not expose stable account/character ownership ids to other clients;
+    // the browser only needs the live ownerPid plus position/render data.
+    maybe('farms', this.sim.farms.map((f) => ({
+      id: f.id,
+      ownerPid: f.ownerPid,
+      x: f.x,
+      z: f.z,
+      facing: f.facing,
+    })));
     maybe('cds', Object.fromEntries([...p.cooldowns.entries()].map(([k, v]) => [k, round2(v)])));
     maybe('stats', p.stats);
     maybe('weapon', p.weapon);

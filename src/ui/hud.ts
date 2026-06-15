@@ -6,7 +6,7 @@ import {
   WORLD_MAX_X, WORLD_MAX_Z, WORLD_MIN_X, WORLD_MIN_Z, ZONES, dungeonAt, zoneAt,
 } from '../sim/data';
 import type { ZoneDef } from '../sim/data';
-import type { InvSlot } from '../sim/types';
+import type { FarmPlot, InvSlot } from '../sim/types';
 import { AbilityEffect, CONSUME_DURATION, Entity, GCD, ItemDef, SimEvent, dist2d, xpForLevel, MAX_LEVEL, MELEE_RANGE } from '../sim/types';
 import { terrainHeight, WATER_LEVEL, roadDistance, generateDecorations, isVisibleTreeDecoration } from '../sim/world';
 import { Meters } from './meters';
@@ -713,6 +713,36 @@ export class Hud {
   // Minimap & world map
   // -------------------------------------------------------------------------
 
+  private ownedFarmPlots(): FarmPlot[] {
+    const pid = this.sim.player.id;
+    // Persisted own farms are saved without ownerPid and restored with the
+    // live player id. Accept both shapes so the marker survives reconnects and
+    // offline/online state transitions.
+    return this.sim.farms.filter((f) => f.ownerPid === undefined || f.ownerPid === pid);
+  }
+
+  private drawFarmMapMarker(ctx: CanvasRenderingContext2D, x: number, y: number, size = 6): void {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = '#71d36b';
+    ctx.strokeStyle = '#201309';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#fff6a3';
+    ctx.beginPath();
+    ctx.moveTo(0, -size - 1);
+    ctx.lineTo(size * 0.72, 0);
+    ctx.lineTo(0, size + 1);
+    ctx.lineTo(-size * 0.72, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
   // Render a region of the heightfield to a canvas; width W px, height
   // derived from the region's aspect so a yard is square on screen.
   private renderTerrainCanvas(W: number, region: { minX: number; maxX: number; minZ: number; maxZ: number }): HTMLCanvasElement {
@@ -801,6 +831,24 @@ export class Hud {
         ctx.fillRect(mx - 1.5, my - 1.5, 3, 3);
       }
     }
+
+    // Own farms: if a farm is outside the minimap radius, clamp the blip to
+    // the edge so walking away never loses the breadcrumb.
+    const farmRadius = S / 2 - 12;
+    for (const farm of this.ownedFarmPlots()) {
+      let mx = S / 2 - (farm.x - p.pos.x) * pxPerYard;
+      let my = S / 2 - (farm.z - p.pos.z) * pxPerYard;
+      const ox = mx - S / 2;
+      const oy = my - S / 2;
+      const d = Math.hypot(ox, oy);
+      const offscreen = d > farmRadius;
+      if (offscreen && d > 1e-5) {
+        mx = S / 2 + (ox / d) * farmRadius;
+        my = S / 2 + (oy / d) * farmRadius;
+      }
+      this.drawFarmMapMarker(ctx, mx, my, offscreen ? 4.5 : 5.5);
+    }
+
     // party members as bright blue blips
     const party = this.sim.partyInfo;
     if (party) {
@@ -910,6 +958,23 @@ export class Hud {
         ctx.strokeText(hasReady ? '?' : '!', mx, my);
         ctx.fillText(hasReady ? '?' : '!', mx, my);
       }
+    }
+    // owned farms. If the farm is in another zone band, keep a border marker
+    // pointing north/south so the map remains useful after travelling away.
+    for (const farm of this.ownedFarmPlots()) {
+      const inZone = farm.z >= zone.zMin && farm.z < zone.zMax;
+      const x = Math.max(region.minX + 6, Math.min(region.maxX - 6, farm.x));
+      const z = inZone ? farm.z : (farm.z < zone.zMin ? zone.zMin + 1 : zone.zMax - 1);
+      const { mx, my } = toMap(x, z);
+      const markerY = inZone ? my : (farm.z < zone.zMin ? S - 12 : 12);
+      this.drawFarmMapMarker(ctx, mx, markerY, 6.5);
+      ctx.font = 'bold 11px Georgia';
+      ctx.fillStyle = '#fff6a3';
+      ctx.strokeStyle = '#201309';
+      ctx.lineWidth = 3;
+      const text = inZone ? 'Your farm' : (farm.z < zone.zMin ? 'Farm south' : 'Farm north');
+      ctx.strokeText(text, mx, markerY - 11);
+      ctx.fillText(text, mx, markerY - 11);
     }
     // player
     if (p.pos.z >= zone.zMin && p.pos.z < zone.zMax && p.pos.x <= WORLD_MAX_X) {
