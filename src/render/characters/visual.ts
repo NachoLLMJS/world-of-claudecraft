@@ -20,6 +20,7 @@ export interface AnimState {
   dead: boolean;
   casting: boolean;
   chopping?: boolean;
+  fishing?: boolean;
   swimming: boolean;
   sitting: boolean;
 }
@@ -90,6 +91,22 @@ export class CharacterVisual {
   private ghostMaterials = new Map<THREE.Material, THREE.Material>();
   private originalWeaponVisibility = new Map<THREE.Object3D, boolean>();
   private harvestTool: THREE.Object3D | null = null;
+  private harvestToolTemplate: THREE.Object3D | null = null;
+  private fishingPoseBones: { shoulder: THREE.Object3D | null; arm: THREE.Object3D | null; forearm: THREE.Object3D | null; hand: THREE.Object3D | null } | null = null;
+  private fishingPoseBase: {
+    shoulder: THREE.Quaternion | null;
+    arm: THREE.Quaternion | null;
+    forearm: THREE.Quaternion | null;
+    hand: THREE.Quaternion | null;
+    shoulderPos: THREE.Vector3 | null;
+    armPos: THREE.Vector3 | null;
+    forearmPos: THREE.Vector3 | null;
+    handPos: THREE.Vector3 | null;
+  } | null = null;
+  private fishingPoseActive = false;
+  private fishingPoseEuler = new THREE.Euler();
+  private fishingPoseQuat = new THREE.Quaternion();
+  private fishingPoseShift = new THREE.Vector3();
 
   private baseState: BaseState = 'idle';
   private current: THREE.AnimationAction | null = null;
@@ -229,6 +246,7 @@ export class CharacterVisual {
       this.mixer.update(this.pendingDt);
       this.pendingDt = 0;
     }
+    this.applyFishingArmPose(s.fishing && !s.dead ? 1 : 0);
   }
 
   // -------------------------------------------------------------------------
@@ -289,12 +307,21 @@ export class CharacterVisual {
     for (const [node, wasVisible] of this.originalWeaponVisibility) {
       node.visible = active ? false : wasVisible;
     }
-    if (active && !this.harvestTool && template) {
+    if (!active) {
+      if (this.harvestTool) this.harvestTool.visible = false;
+      return;
+    }
+    if (this.harvestTool && this.harvestToolTemplate !== template) {
+      this.harvestTool.removeFromParent();
+      this.harvestTool = null;
+      this.harvestToolTemplate = null;
+    }
+    if (!this.harvestTool && template) {
       const bone = this.findHandBone();
       if (bone) {
-        const axe = template.clone(true);
-        axe.name = 'Harvest_Axe_Attached';
-        axe.traverse((o) => {
+        const tool = template.clone(true);
+        tool.name = template.name || 'Harvest_Tool_Attached';
+        tool.traverse((o) => {
           const mesh = o as THREE.Mesh;
           if (mesh.isMesh) {
             mesh.castShadow = true;
@@ -302,21 +329,113 @@ export class CharacterVisual {
           }
         });
         // WeaponR already carries the authored Warrior_Sword transform. Use the
-        // same local basis so the tool sits in the palm instead of pivoting from
-        // the axe head. The extra progress swing is small and applied around
-        // that grip pose so the handle stays in the hand.
-        axe.scale.setScalar(0.42);
-        axe.position.set(-0.05, 0.085, -0.045);
-        axe.rotation.set(-3.03, 0, 1.57);
-        bone.add(axe);
-        this.harvestTool = axe;
+        // same local basis so tools sit in the palm. The fishing pose is now a
+        // steady hold: no cast snap, and the rod's long axis is flipped upward
+        // instead of hanging toward the floor.
+        const isRod = /rod|fishing/i.test(template.name);
+        if (isRod) tool.scale.setScalar(0.30);
+        else tool.scale.setScalar(0.42);
+        tool.position.set(isRod ? -0.055 : -0.05, isRod ? 0.18 : 0.085, isRod ? -0.11 : -0.045);
+        tool.rotation.set(isRod ? -1.08 : -3.03, isRod ? 0.28 : 0, isRod ? 1.42 : 1.57);
+        bone.add(tool);
+        this.harvestTool = tool;
+        this.harvestToolTemplate = template;
       }
     }
     if (!this.harvestTool) return;
-    this.harvestTool.visible = active;
-    if (!active) return;
+    this.harvestTool.visible = true;
     const swing = Math.sin(progress * Math.PI * 12);
-    this.harvestTool.rotation.set(-3.03 + swing * 0.22, 0, 1.57 + swing * 0.12);
+    const isRod = /rod|fishing/i.test(this.harvestTool.name);
+    if (isRod) {
+      // Fishing should be a stable hold only. Do not derive rod rotation from
+      // cast progress: network snapshots can make progress jump visually, which
+      // reads as a repeated cast/throw reset.
+      this.harvestTool.rotation.set(-1.08, 0.28, 1.42);
+      this.harvestTool.position.set(-0.055, 0.18, -0.11);
+    } else this.harvestTool.rotation.set(-3.03 + swing * 0.22, 0, 1.57 + swing * 0.12);
+  }
+
+  private applyFishingArmPose(amount: number): void {
+    if (amount <= 0) {
+      const bones = this.getFishingPoseBones();
+      const base = this.fishingPoseBase;
+      if (base) {
+        if (bones.shoulder && base.shoulderPos) bones.shoulder.position.copy(base.shoulderPos);
+        if (bones.arm && base.armPos) bones.arm.position.copy(base.armPos);
+        if (bones.forearm && base.forearmPos) bones.forearm.position.copy(base.forearmPos);
+        if (bones.hand && base.handPos) bones.hand.position.copy(base.handPos);
+      }
+      this.fishingPoseActive = false;
+      this.fishingPoseBase = null;
+      return;
+    }
+    const bones = this.getFishingPoseBones();
+    if (!this.fishingPoseActive || !this.fishingPoseBase) {
+      // Capture the current local bone quaternions once when fishing starts.
+      // The hold pose is then applied from this frozen base every frame, so the
+      // idle clip can loop underneath without resetting the arm/rod visually.
+      this.fishingPoseBase = {
+        shoulder: bones.shoulder ? bones.shoulder.quaternion.clone() : null,
+        arm: bones.arm ? bones.arm.quaternion.clone() : null,
+        forearm: bones.forearm ? bones.forearm.quaternion.clone() : null,
+        hand: bones.hand ? bones.hand.quaternion.clone() : null,
+        shoulderPos: bones.shoulder ? bones.shoulder.position.clone() : null,
+        armPos: bones.arm ? bones.arm.position.clone() : null,
+        forearmPos: bones.forearm ? bones.forearm.position.clone() : null,
+        handPos: bones.hand ? bones.hand.position.clone() : null,
+      };
+      this.fishingPoseActive = true;
+    }
+    const base = this.fishingPoseBase;
+    if (!base) return;
+    const apply = (bone: THREE.Object3D | null, baseQuat: THREE.Quaternion | null, x: number, y: number, z: number): void => {
+      if (!bone || !baseQuat) return;
+      this.fishingPoseEuler.set(x * amount, y * amount, z * amount, 'XYZ');
+      this.fishingPoseQuat.setFromEuler(this.fishingPoseEuler);
+      bone.quaternion.copy(baseQuat).multiply(this.fishingPoseQuat);
+    };
+    const shift = (bone: THREE.Object3D | null, basePos: THREE.Vector3 | null, x: number, y: number, z: number): void => {
+      if (!bone || !basePos) return;
+      bone.position.copy(basePos).addScaledVector(this.fishingPoseShift.set(x, y, z), amount);
+    };
+    // Move the visible right-arm chain away from the torso. For the Quaternius
+    // Rogue rig, positive local X/Z is the direction that pulls the fist out of
+    // the belly and toward the water; the previous negative shift pushed it in.
+    shift(bones.shoulder, base.shoulderPos, 0.010, 0.004, 0.008);
+    shift(bones.arm, base.armPos, 0.095, 0.018, 0.080);
+    shift(bones.forearm, base.forearmPos, 0.125, 0.010, 0.105);
+    shift(bones.hand, base.handPos, 0.110, 0.006, 0.095);
+    // Fishing hold: use the real fist bones for the pose and keep the wrist
+    // forward/outside instead of folded into the waist.
+    apply(bones.shoulder, base.shoulder, -0.18, 0.18, 0.28);
+    apply(bones.arm, base.arm, -0.62, 0.42, 0.62);
+    apply(bones.forearm, base.forearm, -0.68, -0.10, -0.22);
+    apply(bones.hand, base.hand, -0.14, -0.08, 0.08);
+  }
+
+  private getFishingPoseBones(): { shoulder: THREE.Object3D | null; arm: THREE.Object3D | null; forearm: THREE.Object3D | null; hand: THREE.Object3D | null } {
+    if (this.fishingPoseBones) return this.fishingPoseBones;
+    const find = (...names: string[]): THREE.Object3D | null => {
+      for (const name of names) {
+        const direct = this.model.getObjectByName(name) ?? this.model.getObjectByName(name.replace(/[.[\]:]/g, ''));
+        if (direct) return direct;
+      }
+      const lowered = names.map((n) => n.toLowerCase().replace(/[.[\]:]/g, ''));
+      let found: THREE.Object3D | null = null;
+      this.model.traverse((o) => {
+        if (found) return;
+        const n = o.name.toLowerCase().replace(/[.[\]:]/g, '');
+        if (lowered.some((want) => n === want || n.endsWith(want))) found = o;
+      });
+      return found;
+    };
+    this.fishingPoseBones = {
+      shoulder: find('ShoulderR', 'Shoulder.R', 'mixamorigRightShoulder', 'RightShoulder'),
+      arm: find('ArmR', 'Arm1R', 'UpperArmR', 'Arm.R', 'mixamorigRightArm', 'RightArm'),
+      forearm: find('ForeArmR', 'ForearmR', 'LowerArmR', 'Arm2R', 'ForeArm.R', 'mixamorigRightForeArm', 'RightForeArm'),
+      hand: find('Fist2R', 'Fist2.R', 'Fist1R', 'Fist1.R', 'FistR', 'Fist.R', 'HandR', 'Hand.R', 'mixamorigRightHand', 'RightHand'),
+    };
+    return this.fishingPoseBones;
   }
 
   dispose(): void {
@@ -341,6 +460,9 @@ export class CharacterVisual {
 
   private desiredBase(s: AnimState): BaseState {
     if (s.swimming) return 'swim';
+    // Fishing should not play the generic spell-cast/launch animation. Keep the
+    // base body calm; the fixed right-arm fishing pose below holds the rod.
+    if (s.fishing) return 'idle';
     if (s.chopping) return 'chop';
     if (s.casting) return 'cast';
     if (s.sitting) return 'sit';

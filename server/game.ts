@@ -600,6 +600,7 @@ export class GameServer {
       case 'stopattack': sim.stopAutoAttack(pid); break;
       case 'interact': sim.interact(pid); break;
       case 'chop_tree': sim.chopNearestTree(pid); break;
+      case 'fish': sim.fishNearestWater(pid); break;
       case 'loot': if (typeof msg.id === 'number') sim.lootCorpse(msg.id, pid); break;
       case 'pickup': if (typeof msg.id === 'number') sim.pickUpObject(msg.id, pid); break;
       case 'pickup_farm': if (typeof msg.id === 'string') sim.pickUpFarm(msg.id, pid); break;

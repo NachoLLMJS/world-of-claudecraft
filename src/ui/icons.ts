@@ -1139,6 +1139,7 @@ function qualityFx(quality: string | undefined): FxName[] | undefined {
 }
 
 function trinketPrimitive(name: string): { p: PrimitiveName; pal: PaletteName } {
+  if (has(name, ['fish', 'tuna', 'koi', 'shark', 'snapper', 'angler'])) return { p: 'meat', pal: 'sky' };
   if (has(name, ['skull', 'head'])) return { p: 'skull', pal: 'bone' };
   if (has(name, ['bone'])) return { p: 'bone', pal: 'bone' };
   if (has(name, ['pelt', 'hide', 'fur', 'scrap', 'bandana', 'cloth'])) return { p: 'pelt', pal: 'earthBrown' };

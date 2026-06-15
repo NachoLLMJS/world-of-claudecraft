@@ -52,6 +52,7 @@ const CLASS_GLYPH: Record<string, string> = {
 const ZONE_BANNER_DEADBAND = 5;
 const IGNORED_CHAT_NAMES_KEY = 'woc_ignored_chat_names';
 const TREE_PROMPT_RANGE = 4.2;
+const FISHING_PROMPT_RANGE = 3.2;
 const treePromptKey = (x: number, z: number): string => `${Math.round(x * 10)}:${Math.round(z * 10)}`;
 
 export class Hud {
@@ -514,7 +515,7 @@ export class Hud {
       cb.classList.add('chopping');
       const frac = Math.max(0, Math.min(1, 1 - p.castRemaining / Math.max(0.01, p.castTotal)));
       (cb.querySelector('.fill') as HTMLElement).style.width = `${(frac * 100).toFixed(1)}%`;
-      (cb.querySelector('.label') as HTMLElement).textContent = 'Chopping wood…';
+      (cb.querySelector('.label') as HTMLElement).textContent = p.choppingTreeKey.startsWith('fish:') ? 'Fishing…' : 'Chopping wood…';
     } else if (p.eating || p.drinking) {
       cb.style.display = 'block';
       cb.classList.add('channel');
@@ -670,8 +671,31 @@ export class Hud {
       const d2 = dx * dx + dz * dz;
       if (d2 <= bestD2) { bestD2 = d2; near = true; }
     }
-    if (near) el.innerHTML = '<span class="key">F</span> Chop tree';
-    el.style.display = near ? 'block' : 'none';
+    if (near) {
+      el.innerHTML = '<span class="key">F</span> Chop tree';
+      el.style.display = 'block';
+      return;
+    }
+    if (this.nearFishableWater(p)) {
+      el.innerHTML = '<span class="key">F</span> Fish';
+      el.style.display = 'block';
+      return;
+    }
+    el.style.display = 'none';
+  }
+
+  private nearFishableWater(p: Entity): boolean {
+    if (terrainHeight(p.pos.x, p.pos.z, this.sim.cfg.seed) < WATER_LEVEL - 0.05) return false;
+    for (let r = 1.25; r <= FISHING_PROMPT_RANGE; r += 0.45) {
+      for (let i = 0; i < 32; i++) {
+        const a = (i / 32) * Math.PI * 2;
+        const x = p.pos.x + Math.sin(a) * r;
+        const z = p.pos.z + Math.cos(a) * r;
+        if (x < WORLD_MIN_X || x > WORLD_MAX_X || z < WORLD_MIN_Z || z > WORLD_MAX_Z) return true;
+        if (terrainHeight(x, z, this.sim.cfg.seed) < WATER_LEVEL - 0.15) return true;
+      }
+    }
+    return false;
   }
 
   private renderAuras(el: HTMLElement, e: Entity, mode: 'all' | 'debuffs'): void {

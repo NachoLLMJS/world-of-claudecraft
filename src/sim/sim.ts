@@ -1,8 +1,8 @@
 import {
   ABILITIES, CAMPS, CLASSES, DUNGEONS, DUNGEON_LIST, DungeonDef, dungeonAt,
   DUNGEON_X_THRESHOLD, GROUND_OBJECTS, GROUP_XP_BONUS, INSTANCE_SLOT_COUNT,
-  ITEMS, MOBS, NPCS, PLAYER_START, QUESTS, REWARD_ARCHETYPE, abilitiesKnownAt, instanceOrigin,
-  zoneAt,
+  ITEMS, MOBS, NPCS, PLAYER_START, QUESTS, REWARD_ARCHETYPE, WORLD_MAX_X, WORLD_MAX_Z, WORLD_MIN_X, WORLD_MIN_Z,
+  abilitiesKnownAt, instanceOrigin, zoneAt,
 } from './data';
 import { resolvePosition } from './colliders';
 import { findPath } from './pathfind';
@@ -61,6 +61,22 @@ const PET_GROWL_INTERVAL = 8; // controlled pets can tank by forcing attention
 const TREE_CHOP_RANGE = 4.5;
 const TREE_CHOP_TIME = 5;
 const TREE_RESPAWN = 180;
+const FISHING_RANGE = 3.4;
+const FISHING_TIME = 6;
+const FISHING_KEY_PREFIX = 'fish:';
+const FISHING_LOOT: { itemId: string; chance: number }[] = [
+  { itemId: 'fish_clownfish', chance: 0.22 },
+  { itemId: 'fish_blue_tang', chance: 0.18 },
+  { itemId: 'fish_goldfish', chance: 0.15 },
+  { itemId: 'fish_koi', chance: 0.12 },
+  { itemId: 'fish_puffer', chance: 0.09 },
+  { itemId: 'fish_royal_gramma', chance: 0.08 },
+  { itemId: 'fish_red_snapper', chance: 0.06 },
+  { itemId: 'fish_tuna', chance: 0.045 },
+  { itemId: 'fish_swordfish', chance: 0.035 },
+  { itemId: 'fish_anglerfish', chance: 0.02 },
+  { itemId: 'fish_shark', chance: 0.015 },
+];
 const FARM_PICKUP_RANGE = 4.0;
 const FARM_WALL_EXCLUSION_RADIUS = 55;
 const FARM_PLOT_RADIUS = 5;
@@ -778,7 +794,7 @@ export class Sim {
     // deep water and cliffs end the charge early rather than dragging the player in
     const h0 = groundHeight(p.pos.x, p.pos.z, this.cfg.seed);
     const h1 = groundHeight(nx, nz, this.cfg.seed);
-    if (h1 < WATER_LEVEL - SWIM_DEPTH) return done(false);
+    if (h1 < WATER_LEVEL - 0.05) return done(false);
     if (h1 > h0 && (h1 - h0) / step > MAX_CLIMB_SLOPE) return done(false);
     const resolved = resolvePosition(this.cfg.seed, nx, nz, BODY_RADIUS);
     p.pos.x = resolved.x;
@@ -826,6 +842,13 @@ export class Sim {
       const wz = mz * cos + mx * sin;
       let nx = p.pos.x + wx * speed * DT;
       let nz = p.pos.z + wz * speed * DT;
+      // Water is interactable for fishing, not walkable/swimmable in this pass.
+      // Also stop at the outer shore edge; the ocean mesh lives just beyond it.
+      const outsideWorld = this.isOutsidePlayable(nx, nz);
+      if (outsideWorld || this.isWaterAt(nx, nz)) {
+        nx = p.pos.x;
+        nz = p.pos.z;
+      }
       // cliffs and the world rim are walls, not ramps
       if (p.onGround && !swimming) {
         const h0 = groundHeight(p.pos.x, p.pos.z, this.cfg.seed);
@@ -842,9 +865,10 @@ export class Sim {
       p.pos.z = resolved.z;
     }
 
+    const rescued = this.rescueFromWaterOrOcean(p);
     // Vertical: jumping, gravity, swimming, fall damage
     const ground = groundHeight(p.pos.x, p.pos.z, this.cfg.seed);
-    const deepWater = ground < WATER_LEVEL - SWIM_DEPTH;
+    const deepWater = !rescued && ground < WATER_LEVEL - SWIM_DEPTH;
     if (deepWater && p.pos.y <= SWIM_SURFACE_Y + 0.05) {
       // treading water at the surface
       p.pos.y = SWIM_SURFACE_Y;
@@ -898,6 +922,43 @@ export class Sim {
     }
   }
 
+  private isOutsidePlayable(x: number, z: number): boolean {
+    return x < WORLD_MIN_X + BODY_RADIUS || x > WORLD_MAX_X - BODY_RADIUS
+      || z < WORLD_MIN_Z + BODY_RADIUS || z > WORLD_MAX_Z - BODY_RADIUS;
+  }
+
+  private isWaterAt(x: number, z: number): boolean {
+    return groundHeight(x, z, this.cfg.seed) < WATER_LEVEL - 0.05;
+  }
+
+  private rescueFromWaterOrOcean(p: Entity): boolean {
+    if (!this.isOutsidePlayable(p.pos.x, p.pos.z) && !this.isWaterAt(p.pos.x, p.pos.z)) return false;
+    let best: { x: number; z: number; d: number } | null = null;
+    for (let r = 0.75; r <= 8; r += 0.75) {
+      for (let i = 0; i < 32; i++) {
+        const a = (i / 32) * Math.PI * 2;
+        const x = p.pos.x + Math.sin(a) * r;
+        const z = p.pos.z + Math.cos(a) * r;
+        if (this.isOutsidePlayable(x, z) || this.isWaterAt(x, z)) continue;
+        const d = Math.hypot(x - p.pos.x, z - p.pos.z);
+        if (!best || d < best.d) best = { x, z, d };
+      }
+      if (best) break;
+    }
+    if (!best) {
+      p.pos.x = Math.max(WORLD_MIN_X + BODY_RADIUS, Math.min(WORLD_MAX_X - BODY_RADIUS, p.pos.x));
+      p.pos.z = Math.max(WORLD_MIN_Z + BODY_RADIUS, Math.min(WORLD_MAX_Z - BODY_RADIUS, p.pos.z));
+    } else {
+      p.pos.x = best.x;
+      p.pos.z = best.z;
+    }
+    p.pos.y = groundHeight(p.pos.x, p.pos.z, this.cfg.seed);
+    p.vy = 0;
+    p.onGround = true;
+    p.fallStartY = p.pos.y;
+    return true;
+  }
+
   private standUp(p: Entity): void {
     p.sitting = false;
     if (isConsuming(p)) {
@@ -940,11 +1001,73 @@ export class Sim {
     return true;
   }
 
+  fishNearestWater(pid?: number): boolean {
+    const r = this.resolve(pid);
+    if (!r) return false;
+    const p = r.e;
+    if (p.dead) return false;
+    if (p.inCombat) { this.error(p.id, "You can't fish while in combat."); return true; }
+    if (this.isSwimming(p)) { this.error(p.id, "You need to stand on shore to fish."); return true; }
+    if (p.choppingTreeKey) return true;
+    const spot = this.nearestFishingSpot(p);
+    if (!spot) return false;
+    if (p.castingAbility) this.cancelCast(p);
+    if (p.sitting) this.standUp(p);
+    p.autoAttack = false;
+    p.choppingTreeKey = `${FISHING_KEY_PREFIX}${treeKey(spot.x, spot.z)}`;
+    p.choppingTreeX = spot.x;
+    p.choppingTreeZ = spot.z;
+    p.castRemaining = FISHING_TIME;
+    p.castTotal = FISHING_TIME;
+    p.facing = angleTo(p.pos, { x: spot.x, y: p.pos.y, z: spot.z });
+    this.emit({ type: 'treeChopStart', entityId: p.id, treeKey: p.choppingTreeKey, x: spot.x, z: spot.z, time: FISHING_TIME });
+    this.emit({ type: 'log', text: 'You cast your line…', color: '#7fdcff', pid: p.id });
+    return true;
+  }
+
+  private isFishingKey(key: string | null): boolean {
+    return !!key && key.startsWith(FISHING_KEY_PREFIX);
+  }
+
+  private isFishingWater(x: number, z: number): boolean {
+    if (x < WORLD_MIN_X || x > WORLD_MAX_X || z < WORLD_MIN_Z || z > WORLD_MAX_Z) return true;
+    return groundHeight(x, z, this.cfg.seed) < WATER_LEVEL - 0.15;
+  }
+
+  private nearestFishingSpot(p: Entity): { x: number; z: number } | null {
+    if (groundHeight(p.pos.x, p.pos.z, this.cfg.seed) < WATER_LEVEL - 0.05) return null;
+    let best: { x: number; z: number; d: number } | null = null;
+    for (let r = 1.25; r <= FISHING_RANGE; r += 0.45) {
+      for (let i = 0; i < 32; i++) {
+        const a = (i / 32) * Math.PI * 2;
+        const x = p.pos.x + Math.sin(a) * r;
+        const z = p.pos.z + Math.cos(a) * r;
+        if (!this.isFishingWater(x, z)) continue;
+        const d = Math.hypot(x - p.pos.x, z - p.pos.z);
+        if (!best || d < best.d) best = { x, z, d };
+      }
+      if (best) break;
+    }
+    return best ? { x: best.x, z: best.z } : null;
+  }
+
+  private rollFishingLoot(): string {
+    const total = FISHING_LOOT.reduce((s, f) => s + f.chance, 0);
+    let roll = this.rng.next() * total;
+    for (const fish of FISHING_LOOT) {
+      roll -= fish.chance;
+      if (roll <= 0) return fish.itemId;
+    }
+    return FISHING_LOOT[0].itemId;
+  }
+
+
   private updateTreeChopping(p: Entity, meta: PlayerMeta): void {
     if (!p.choppingTreeKey) return;
     const key = p.choppingTreeKey;
-    if (this.isStunned(p) || this.choppedTrees.has(key)
-      || Math.hypot(p.pos.x - p.choppingTreeX, p.pos.z - p.choppingTreeZ) > TREE_CHOP_RANGE + 0.75) {
+    const fishing = this.isFishingKey(key);
+    if (this.isStunned(p) || (!fishing && this.choppedTrees.has(key))
+      || Math.hypot(p.pos.x - p.choppingTreeX, p.pos.z - p.choppingTreeZ) > (fishing ? FISHING_RANGE : TREE_CHOP_RANGE) + 0.75) {
       this.cancelTreeChop(p);
       return;
     }
@@ -953,6 +1076,12 @@ export class Sim {
     if (p.castRemaining > 0) return;
     p.castRemaining = 0;
     p.choppingTreeKey = null;
+    if (fishing) {
+      const itemId = this.rollFishingLoot();
+      this.addItem(itemId, 1, meta.entityId);
+      this.emit({ type: 'treeChopStop', entityId: p.id, treeKey: key, success: true });
+      return;
+    }
     this.choppedTrees.set(key, TREE_RESPAWN);
     this.addItem('harvested_wood', 1, meta.entityId);
     this.onTreeChoppedForQuests(meta);

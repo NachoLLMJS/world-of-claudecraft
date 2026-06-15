@@ -591,6 +591,13 @@ export class ClientWorld implements IWorld {
   }
   chopNearestTree(): boolean {
     this.cmd({ cmd: 'chop_tree' });
+    // Online mode cannot know client-side whether a visible harvest tree is
+    // actually in range, so let the interact chain also try fishing. The server
+    // ignores the second command if chopping already started.
+    return false;
+  }
+  fishNearestWater(): boolean {
+    this.cmd({ cmd: 'fish' });
     return true;
   }
   lootCorpse(id: number): void {

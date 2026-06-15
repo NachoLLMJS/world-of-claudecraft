@@ -22,8 +22,11 @@ import { buildWater, WaterView } from './water';
 import { buildClouds, buildSky, SkyView } from './sky';
 import { buildFoliage, FoliageView } from './foliage';
 import { FarmsteadView } from './farmstead';
+import { buildFishingView, FishingView } from './fishing';
 import { shouldRenderStealthGhost } from './stealth';
 import { loadGltf } from './assets/loader';
+import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 
 const NAMEPLATE_RANGE = 55;
 // Entities further than this from the player are hidden entirely: their rigs
@@ -93,6 +96,7 @@ interface EntityView {
   // locomotion-state hysteresis so a one-frame speed dip can't reset the
   // walk clip (see locomotion.ts)
   loco: LocoTrack;
+  fishingVisualUntil: number;
 }
 
 function collectCasters(root: THREE.Object3D, into: THREE.Object3D[]): void {
@@ -137,6 +141,7 @@ export class Renderer {
   private fireLights: THREE.PointLight[];
   private propsView!: { update(camX: number, camZ: number, fogFar: number): void };
   private farmsteadView!: FarmsteadView;
+  private fishingView!: FishingView;
   private lightRank: { light: THREE.PointLight; d2: number; worldPos: THREE.Vector3 }[] = [];
   private doomedIds: number[] = [];
   private dungeons: DungeonInteriors | null = null;
@@ -147,6 +152,7 @@ export class Renderer {
   private frameIdx = 0;
   vfx: Vfx;
   private axeTemplate: THREE.Object3D | null = null;
+  private fishingRodTemplate: THREE.Object3D | null = null;
 
   private lowGfx: boolean;
   private post: PostPipeline | null = null;
@@ -231,6 +237,7 @@ export class Renderer {
     void loadGltf('/models/tools/woc_new/Axe_Wood.gltf').then((gltf) => {
       this.axeTemplate = gltf.scene;
     }).catch(() => { this.axeTemplate = null; });
+    this.loadFishingRodTemplate();
 
     // visible sun disc + bloom halo
     const sunCanvas = (core: boolean): THREE.CanvasTexture => {
@@ -310,6 +317,8 @@ export class Renderer {
     this.scene.add(this.terrainView.group);
     this.waterView = buildWater(this.sim.cfg.seed);
     for (const mesh of this.waterView.meshes) this.scene.add(mesh);
+    this.fishingView = buildFishingView(this.sim.cfg.seed);
+    this.scene.add(this.fishingView.group);
 
     this.foliage = buildFoliage(this.sim.cfg.seed);
     this.scene.add(this.foliage.group);
@@ -576,6 +585,7 @@ export class Renderer {
       objectCasters, shadowOn: true, isFar: false,
       lastX: e.pos.x, lastZ: e.pos.z,
       loco: newLocoTrack(),
+      fishingVisualUntil: 0,
     });
   }
 
@@ -725,11 +735,38 @@ export class Renderer {
     this.views.delete(id);
   }
 
-  private updateAxeVisual(active: CharacterVisual, e: Entity): void {
-    const chopping = e.kind === 'player' && e.choppingTreeKey !== null && !e.dead;
+  private loadFishingRodTemplate(): void {
+    const base = '/models/fishing/';
+    const mtl = new MTLLoader();
+    mtl.setPath(base);
+    mtl.load('FishingRod_Lvl1.mtl', (materials) => {
+      materials.preload();
+      const obj = new OBJLoader();
+      obj.setMaterials(materials);
+      obj.setPath(base);
+      obj.load('FishingRod_Lvl1.obj', (root) => {
+        root.name = 'FishingRod_Lvl1';
+        root.traverse((o) => {
+          const mesh = o as THREE.Mesh;
+          if (!mesh.isMesh) return;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          const mat = mesh.material as THREE.MeshStandardMaterial | THREE.MeshPhongMaterial;
+          if (mat && 'color' in mat) mat.color.setHex(0x8a5830);
+          if (mat && 'emissive' in mat) mat.emissive.setHex(0x160b04);
+        });
+        this.fishingRodTemplate = root;
+      }, undefined, () => { this.fishingRodTemplate = null; });
+    }, undefined, () => { this.fishingRodTemplate = null; });
+  }
+
+  private updateAxeVisual(active: CharacterVisual, e: Entity, fishingOverride = false): void {
+    const fishing = fishingOverride || (e.kind === 'player' && e.choppingTreeKey?.startsWith('fish:') && !e.dead);
+    const chopping = e.kind === 'player' && e.choppingTreeKey !== null && !fishing && !e.dead;
+    const usingTool = fishing || chopping;
     const total = Math.max(0.01, e.castTotal);
-    const progress = chopping ? 1 - e.castRemaining / total : 0;
-    active.setHarvestTool(this.axeTemplate, chopping, progress);
+    const progress = fishing ? 1 : (usingTool ? 1 - e.castRemaining / total : 0);
+    active.setHarvestTool(fishing ? this.fishingRodTemplate : this.axeTemplate, usingTool, progress);
   }
 
   sync(alpha: number, dt: number, renderFacingOverride: number | null): void {
@@ -856,13 +893,17 @@ export class Renderer {
       v.lastZ = z;
       const loco = updateLocomotion(v.loco, vx, vz, facing, dt);
       const moving = loco.moving;
+      const rawFishing = e.kind === 'player' && e.choppingTreeKey?.startsWith('fish:') && !e.dead;
+      if (rawFishing) v.fishingVisualUntil = this.time + 0.28;
+      const fishing = rawFishing || (e.kind === 'player' && !e.dead && this.time < v.fishingVisualUntil);
       const st: AnimState = {
         speed: loco.speed,
         moving,
         backwards: loco.backwards,
         dead: e.dead,
         casting: e.castingAbility !== null && !e.dead,
-        chopping: e.choppingTreeKey !== null && !e.dead,
+        chopping: e.choppingTreeKey !== null && !fishing && !e.dead,
+        fishing,
         swimming,
         sitting: e.kind === 'player' && (e.sitting || e.eating !== null || e.drinking !== null),
       };
@@ -874,7 +915,7 @@ export class Renderer {
         else if (d2 > ENTITY_SHADOW_RANGE_SQ) animate = ((this.frameIdx + e.id) & 1) === 0;
       }
       active.update(dt, st, animate);
-      this.updateAxeVisual(active, e);
+      this.updateAxeVisual(active, e, fishing);
 
       if (e.castingAbility !== null && st.casting) {
         this.vfx.castSparkle(e.id, ABILITIES[e.castingAbility!]?.school ?? 'arcane', dt);
@@ -938,6 +979,7 @@ export class Renderer {
     this.terrainView.update(this.camera.position.x, this.camera.position.z, fogFar);
     this.propsView.update(this.camera.position.x, this.camera.position.z, fogFar);
     this.farmsteadView.update();
+    this.fishingView.update(this.time);
     this.foliage.setChoppedTrees(new Set(this.sim.choppedTrees.keys()));
     this.foliage.update(p.pos.x, p.pos.z, this.camera.position.x, this.camera.position.z, fogFar);
 

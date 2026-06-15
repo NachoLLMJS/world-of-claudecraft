@@ -214,6 +214,7 @@ async function startGame(world: IWorld, offlineSim: Sim | null, online: ClientWo
     if (bestNpc !== null) { hud.openQuestDialog(bestNpc); return; }
     if (bestFarm !== null) { world.pickUpFarm(bestFarm); return; }
     if (world.chopNearestTree()) return;
+    if (world.fishNearestWater()) return;
     hud.showError('Nothing to interact with.');
   }
 

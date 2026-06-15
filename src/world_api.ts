@@ -105,6 +105,7 @@ export interface IWorld {
   stopAutoAttack(): void;
   interact(): void;
   chopNearestTree(): boolean;
+  fishNearestWater(): boolean;
   choppedTrees: Map<string, number>;
   farms: FarmPlot[];
   lootCorpse(id: number): void;
