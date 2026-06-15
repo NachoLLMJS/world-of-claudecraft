@@ -1,4 +1,4 @@
-import { Sim } from './sim/sim';
+import { Sim, type CharacterState } from './sim/sim';
 import { Renderer } from './render/renderer';
 import { Input } from './game/input';
 import { Keybinds } from './game/keybinds';
@@ -75,7 +75,7 @@ function beginWorldEntry(): boolean {
 // Shared game wiring (used by both offline sim and online world)
 // ---------------------------------------------------------------------------
 
-async function startGame(world: IWorld, offlineSim: Sim | null, online: ClientWorld | null): Promise<void> {
+async function startGame(world: IWorld, offlineSim: Sim | null, online: ClientWorld | null, offlineCharacterId?: string): Promise<void> {
   // Model/texture/HDRI fetches were kicked off at module import; the renderer
   // builds its scene synchronously, so everything must be resolved first.
   // The loading screen covers the gap — not a silent black screen.
@@ -184,6 +184,21 @@ async function startGame(world: IWorld, offlineSim: Sim | null, online: ClientWo
       submit: (targetPid, reason, details) => api.reportPlayer(online.characterId, targetPid, reason, details),
       submitByName: (targetName, reason, details) => api.reportPlayerByName(online.characterId, targetName, reason, details),
     });
+  }
+
+  const saveOfflineProgress = () => {
+    if (!offlineSim || !offlineCharacterId) return;
+    const state = offlineSim.serializeCharacter(offlineSim.playerId);
+    if (!state) return;
+    const chars = loadOfflineCharacters();
+    const next = chars.map((c) => c.id === offlineCharacterId
+      ? { ...c, level: state.level, state, updatedAt: Date.now() }
+      : c);
+    saveOfflineCharacters(next);
+  };
+  if (offlineSim && offlineCharacterId) {
+    window.setInterval(saveOfflineProgress, 5000);
+    window.addEventListener('beforeunload', saveOfflineProgress);
   }
 
   function interactKey(): void {
@@ -323,15 +338,64 @@ async function startGame(world: IWorld, offlineSim: Sim | null, online: ClientWo
 // Offline names go straight into innerHTML paths (quest $N text, char window
 // title), so enforce the server's character-name rule client-side too:
 // strip anything outside [A-Za-z' -], then require /^[A-Za-z][A-Za-z' -]{1,15}$/.
+const OFFLINE_CHARACTERS_KEY = 'woc:offlineCharacters:v1';
+
+type OfflineCharacterSummary = {
+  id: string;
+  name: string;
+  class: PlayerClass;
+  level: number;
+  state?: CharacterState | null;
+  createdAt: number;
+  updatedAt: number;
+};
+
 function sanitizeOfflineName(raw: string): string {
   const stripped = raw.replace(/[^A-Za-z' -]/g, '').replace(/^[^A-Za-z]+/, '').slice(0, 16);
   return /^[A-Za-z][A-Za-z' -]{1,15}$/.test(stripped) ? stripped : 'Adventurer';
 }
 
-function startOffline(playerClass: PlayerClass, name: string): void {
+function loadOfflineCharacters(): OfflineCharacterSummary[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(OFFLINE_CHARACTERS_KEY) ?? '[]');
+    if (!Array.isArray(raw)) return [];
+    return raw.filter((c): c is OfflineCharacterSummary =>
+      typeof c?.id === 'string'
+      && typeof c?.name === 'string'
+      && typeof c?.class === 'string'
+      && typeof c?.level === 'number'
+      && typeof c?.createdAt === 'number'
+      && typeof c?.updatedAt === 'number',
+    );
+  } catch {
+    return [];
+  }
+}
+
+function saveOfflineCharacters(chars: OfflineCharacterSummary[]): void {
+  localStorage.setItem(OFFLINE_CHARACTERS_KEY, JSON.stringify(chars));
+}
+
+function createOfflineCharacter(name: string, cls: PlayerClass): OfflineCharacterSummary {
+  const now = Date.now();
+  const char: OfflineCharacterSummary = {
+    id: `local-${now}-${Math.random().toString(36).slice(2, 8)}`,
+    name,
+    class: cls,
+    level: 1,
+    state: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+  saveOfflineCharacters([...loadOfflineCharacters(), char]);
+  return char;
+}
+
+function startOffline(playerClass: PlayerClass, name: string, offlineCharacterId?: string, state?: CharacterState | null): void {
   if (!beginWorldEntry()) return;
-  const sim = new Sim({ seed: WORLD_SEED, playerClass, playerName: name });
-  void startGame(sim, sim, null);
+  const sim = new Sim({ seed: WORLD_SEED, playerClass, playerName: name, noPlayer: true });
+  sim.addPlayer(playerClass, name, state ? { state } : undefined);
+  void startGame(sim, sim, null, offlineCharacterId);
 }
 
 // ---------------------------------------------------------------------------
@@ -1043,8 +1107,54 @@ function wireStartScreens(): void {
   const btnStartOffline = $('#btn-start-offline') as HTMLButtonElement;
   const offlineNameInput = $('#char-name') as HTMLInputElement;
   const offlineError = $('#offline-error');
+  const offlineList = $('#offline-char-list') as HTMLUListElement;
   
   const handleOnlineSelect = () => show('#login-panel');
+
+  const refreshOfflineCharacters = () => {
+    const chars = loadOfflineCharacters();
+    offlineList.innerHTML = '';
+    if (chars.length === 0) {
+      offlineList.innerHTML = '<li class="char-list-message">No local solo characters yet. Create one below.</li>';
+      return;
+    }
+    for (const c of chars) {
+      const row = document.createElement('li');
+      row.className = 'char-row offline-local-row';
+      row.setAttribute('tabindex', '0');
+      row.setAttribute('role', 'option');
+      row.dataset.class = c.class;
+      row.innerHTML = `<span class="char-name">${c.name}</span>
+        <span class="char-sub">Level ${c.level} ${c.class[0].toUpperCase()}${c.class.slice(1)} · Local Solo · no wallet/market/trade</span>
+        <span class="char-actions">
+          <button class="btn offline-play-btn">Play Solo</button>
+          <button class="btn offline-delete-btn" style="border-color:#8b1e1e;color:#ffb3b3;">Delete Local</button>
+        </span>`;
+      row.querySelector('.offline-play-btn')!.addEventListener('click', (e) => {
+        e.stopPropagation();
+        startOffline(c.class, c.name, c.id, c.state ?? null);
+      });
+      row.querySelector('.offline-delete-btn')!.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!window.confirm(`Delete local offline character ${c.name}? This only affects this browser/device.`)) return;
+        const typed = window.prompt(`Type the character name exactly to delete this local save:\n${c.name}`);
+        if (typed !== c.name) {
+          offlineError.textContent = 'Delete cancelled: name did not match.';
+          return;
+        }
+        saveOfflineCharacters(loadOfflineCharacters().filter((x) => x.id !== c.id));
+        offlineError.textContent = `${c.name} deleted from offline saves.`;
+        refreshOfflineCharacters();
+      });
+      row.addEventListener('click', () => {
+        document.querySelectorAll('#offline-char-list .char-row').forEach((r) => r.classList.remove('sel'));
+        row.classList.add('sel');
+        renderClassDetails('offline-class-details', c.class);
+      });
+      row.addEventListener('keydown', (e) => handleKeyboardActivation(e as KeyboardEvent, () => row.click()));
+      offlineList.appendChild(row);
+    }
+  };
 
   const handleOfflineStart = (cls: PlayerClass) => {
     const rawName = offlineNameInput.value.trim();
@@ -1067,14 +1177,22 @@ function wireStartScreens(): void {
     offlineNameInput.classList.remove('user-invalid-fallback');
     offlineNameInput.removeAttribute('aria-invalid');
 
+    const name = sanitizeOfflineName(rawName);
+    if (loadOfflineCharacters().some((c) => c.name.toLowerCase() === name.toLowerCase())) {
+      offlineError.textContent = 'You already have a local offline character with that name.';
+      offlineNameInput.focus();
+      return;
+    }
+
     audio.init();
     music.init();
-    const name = sanitizeOfflineName(rawName);
-    startOffline(cls, name);
+    const offlineChar = createOfflineCharacter(name, cls);
+    startOffline(offlineChar.class, offlineChar.name, offlineChar.id, offlineChar.state ?? null);
   };
 
   const handleOfflineSelect = () => {
     show('#offline-select');
+    refreshOfflineCharacters();
     
     // Select warrior by default and render details
     const warriorCard = document.querySelector('#offline-select .mini-class[data-class="warrior"]') as HTMLElement | null;

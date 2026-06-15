@@ -2,31 +2,22 @@
 
 [Join the community Discord](https://discord.gg/GjhnUsBtw)
 
-![VAELORIA title screen](docs/screenshots/title-screen.jpg)
-
 A vanilla-WoW-flavored micro-MMO you can host and play:
 
-1. **Play it online** — a real client/server game with accounts, persistent
-   characters in Postgres, and other players in the world with you.
-2. **Play it offline** in your browser to jump straight into the world.
+1. **Online Mode** — server characters, shared realm, wallet identity,
+   blockchain-ready systems, player trading, guilds, chat, and marketplace.
+2. **Offline Solo Mode** — local-only characters on this browser/device: no
+   wallet, no blockchain, no online market, no player trade, no guilds.
 
-Both run the **same deterministic simulation core** (`src/sim/`), so the
-offline world behaves identically to what the authoritative multiplayer server
-runs for everyone online.
+Both run the **same deterministic simulation core** (`src/sim/`), but their
+characters and economies are intentionally separate. Offline saves never import
+into Online Mode.
 
 ## Screenshots
 
-![A party gathers outside the apothecary in Eastbrook](docs/screenshots/party-questing.jpg)
-
-| | |
-|:---:|:---:|
-| ![Dusk at the Eastbrook campfire](docs/screenshots/eastbrook-dusk.jpg)<br>*Dusk at the Eastbrook campfire* | ![Elite pulls in the Hollow Crypt](docs/screenshots/hollow-crypt.jpg)<br>*Torch-lit elite pulls in the Hollow Crypt* |
-| ![The restless dead at the ruined chapel](docs/screenshots/restless-dead.jpg)<br>*The restless dead at the ruined chapel* | ![A brawl with Vale Bandits](docs/screenshots/vale-bandits.jpg)<br>*Outnumbered at the bandit camp* |
-| ![Old Greyjaw hunted down on the north road](docs/screenshots/old-greyjaw.jpg)<br>*Old Greyjaw, the rare spawn, run down on the north road* | ![Vendor and bags UI](docs/screenshots/vendor-and-bags.jpg)<br>*Gearing up at Smith Haldren's — tooltips, bags, coin* |
-
-![World of Claude](worldofclaude.png)
-
-![VAELORIA community](woc_community.png)
+Screenshots are being refreshed to match the current build. New captures will
+be added here once the latest tutorial, city, online, and offline flows are
+finalized.
 
 ---
 

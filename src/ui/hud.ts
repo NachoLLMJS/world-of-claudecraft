@@ -1730,14 +1730,18 @@ export class Hud {
       ? !!social?.blocks.some((b) => b.name === name)
       : this.isChatIgnored(name);
     let html = `<div class="ctx-title">${esc(name)}</div>`;
-    if (!isMember) html += `<div class="ctx-item" data-act="invite">Invite to Party</div>`;
-    html += `<div class="ctx-item" data-act="trade">Trade</div>`;
-    html += `<div class="ctx-item" data-act="duel">Challenge to a Duel</div>`;
-    if (online) html += `<div class="ctx-item" data-act="${isFriend ? 'unfriend' : 'friend'}">${isFriend ? 'Remove Friend' : 'Add Friend'}</div>`;
-    if (inGuildWithInvite && !alreadyGuilded) html += `<div class="ctx-item" data-act="ginvite">Invite to Guild</div>`;
+    if (online) {
+      if (!isMember) html += `<div class="ctx-item" data-act="invite">Invite to Party</div>`;
+      html += `<div class="ctx-item" data-act="trade">Trade</div>`;
+      html += `<div class="ctx-item" data-act="duel">Challenge to a Duel</div>`;
+      html += `<div class="ctx-item" data-act="${isFriend ? 'unfriend' : 'friend'}">${isFriend ? 'Remove Friend' : 'Add Friend'}</div>`;
+      if (inGuildWithInvite && !alreadyGuilded) html += `<div class="ctx-item" data-act="ginvite">Invite to Guild</div>`;
+      if (this.reportHooks && pid !== this.sim.playerId) html += `<div class="ctx-item" data-act="report">Report Player</div>`;
+      if (isLeader && isMember && pid !== this.sim.playerId) html += `<div class="ctx-item" data-act="kick">Remove from Party</div>`;
+    } else {
+      html += `<div class="ctx-note">Offline Solo: player trade, parties, guilds, reports, and market are disabled.</div>`;
+    }
     html += `<div class="ctx-item" data-act="ignore">${ignored ? 'Unignore' : 'Ignore'}${online ? '' : ' Chat'}</div>`;
-    if (this.reportHooks && pid !== this.sim.playerId) html += `<div class="ctx-item" data-act="report">Report Player</div>`;
-    if (isLeader && isMember && pid !== this.sim.playerId) html += `<div class="ctx-item" data-act="kick">Remove from Party</div>`;
     html += `<div class="ctx-item" data-act="close">Cancel</div>`;
     el.innerHTML = html;
     el.style.left = `${Math.min(window.innerWidth - 170, x)}px`;
@@ -1780,7 +1784,7 @@ export class Hud {
       ignored,
       canGuildInvite,
       alreadyGuilded,
-      canReport: !!this.reportHooks?.submitByName,
+      canReport: online && !!this.reportHooks?.submitByName,
     });
     el.innerHTML = `<div class="ctx-title">${esc(name)}</div>`
       + actions.map((a) => `<div class="ctx-item" data-act="${a.id}">${esc(a.label)}</div>`).join('');
