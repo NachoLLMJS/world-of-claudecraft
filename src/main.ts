@@ -612,9 +612,12 @@ async function refreshCharacters(): Promise<void> {
       row.dataset.class = c.class;
       row.innerHTML = `<span class="char-name">${c.name}</span>
         <span class="char-sub">Level ${c.level} ${c.class[0].toUpperCase()}${c.class.slice(1)}${c.online ? ' (in world)' : c.forceRename ? ' (rename required)' : ''}</span>
-        ${c.forceRename
-          ? '<input class="rename-input" placeholder="New character name" maxlength="16" /><button class="btn rename-btn">Rename</button>'
-          : `<button class="btn" ${c.online ? 'disabled' : ''}>Enter World</button>`}`;
+        <span class="char-actions">
+          ${c.forceRename
+            ? '<input class="rename-input" placeholder="New character name" maxlength="16" /><button class="btn rename-btn">Rename</button>'
+            : `<button class="btn enter-btn" ${c.online ? 'disabled' : ''}>Enter World</button>`}
+          <button class="btn delete-char-btn" ${c.online ? 'disabled title="Log out before deleting"' : ''} style="border-color:#8b1e1e;color:#ffb3b3;">Delete Forever</button>
+        </span>`;
 
       if (c.forceRename) {
         const input = row.querySelector('.rename-input') as HTMLInputElement;
@@ -629,11 +632,32 @@ async function refreshCharacters(): Promise<void> {
           }
         });
       } else {
-        row.querySelector('button')!.addEventListener('click', (e) => {
+        row.querySelector('.enter-btn')!.addEventListener('click', (e) => {
           e.stopPropagation();
           enterWorld(c);
         });
       }
+      row.querySelector('.delete-char-btn')!.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        $('#charselect-error').textContent = '';
+        if (c.online) {
+          $('#charselect-error').textContent = 'Log out of that character before deleting it.';
+          return;
+        }
+        if (!window.confirm(`Permanently delete ${c.name}? This cannot be undone.`)) return;
+        const typed = window.prompt(`Type the character name exactly to delete forever:\n${c.name}`);
+        if (typed !== c.name) {
+          $('#charselect-error').textContent = 'Delete cancelled: name did not match.';
+          return;
+        }
+        try {
+          await api.deleteCharacter(c.id);
+          $('#charselect-error').textContent = `${c.name} deleted forever.`;
+          await refreshCharacters();
+        } catch (err: any) {
+          $('#charselect-error').textContent = err.message;
+        }
+      });
 
       const selectRow = () => {
         // Deselect other characters

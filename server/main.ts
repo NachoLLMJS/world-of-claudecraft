@@ -216,7 +216,11 @@ async function handleApi(req: http.IncomingMessage, res: http.ServerResponse): P
     if (req.method === 'DELETE' && delMatch) {
       const accountId = await bearerActiveAccount(req, res);
       if (accountId === null) return;
-      const ok = await deleteCharacter(accountId, Number(delMatch[1]));
+      const characterId = Number(delMatch[1]);
+      if ([...game.clients.values()].some((s) => s.characterId === characterId)) {
+        return json(res, 409, { error: 'log out before deleting that character' });
+      }
+      const ok = await deleteCharacter(accountId, characterId);
       return json(res, ok ? 200 : 404, ok ? { ok: true } : { error: 'not found' });
     }
     if (req.method === 'GET' && url === '/api/realms') {

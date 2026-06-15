@@ -133,6 +133,14 @@ export class Api {
     await this.post(`/api/characters/${characterId}/rename`, { name });
   }
 
+  async deleteCharacter(characterId: number): Promise<void> {
+    const res = await fetch(`${this.base}/api/characters/${characterId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${this.token}` },
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `HTTP ${res.status}`);
+  }
+
   async reportPlayer(reporterCharacterId: number, targetPid: number, reason: string, details: string): Promise<void> {
     await this.post('/api/reports', { reporterCharacterId, targetPid, reason, details });
   }
