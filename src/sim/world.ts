@@ -120,12 +120,20 @@ export function terrainHeight(x: number, z: number, seed: number): number {
     }
   }
 
-  // Raise the world rim so the player naturally stays in bounds
-  const rimX = smoothstep(WORLD_MAX_X - 30, WORLD_MAX_X, Math.abs(x));
-  const rimS = smoothstep(WORLD_MIN_Z + 30, WORLD_MIN_Z, z);
-  const rimN = smoothstep(WORLD_MAX_Z - 30, WORLD_MAX_Z, z);
-  const rim = Math.max(rimX, rimS, rimN);
-  h += rim * 40;
+  // Trial coast rim: replace the old mountain wall with a low beach shelf.
+  // The last ~42 yards roll down toward sea level so the border reads as
+  // shoreline/ocean instead of an artificial raised terrain wall.
+  const distToEdge = Math.min(
+    WORLD_MAX_X - Math.abs(x),
+    z - WORLD_MIN_Z,
+    WORLD_MAX_Z - z,
+  );
+  const beach = 1 - smoothstep(0, 42, distToEdge);
+  if (beach > 0) {
+    const wave = (fbm2(x * 0.055 + 71, z * 0.055 - 19, seed + 211, 2) - 0.5) * 0.8;
+    const shoreHeight = WATER_LEVEL + 0.72 + wave;
+    h = lerp(h, shoreHeight, beach * 0.92);
+  }
   return h;
 }
 

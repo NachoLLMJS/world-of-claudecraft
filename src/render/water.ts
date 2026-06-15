@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { WORLD_MAX_Z, WORLD_MIN_Z, WORLD_SIZE, ZONES } from '../sim/data';
+import { WORLD_MAX_X, WORLD_MAX_Z, WORLD_MIN_X, WORLD_MIN_Z, WORLD_SIZE, ZONES } from '../sim/data';
 import { terrainHeight, WATER_LEVEL } from '../sim/world';
 import { loadTexture } from './assets/loader';
 import { registerPreload } from './assets/preload';
@@ -18,6 +18,8 @@ import { waterNormalish, waterNormalMaps } from './textures';
 // swell normal map for textured speculars.
 
 const SEGMENTS_PER_ZONE = 180; // ~2u vertex spacing — enough for the foam band
+const OCEAN_EXTENT = 180;
+const OCEAN_SEGMENTS = 64;
 
 // Real water normal maps, fetched at module import and gated by the boot
 // preload, so build code below can read them synchronously.
@@ -142,6 +144,29 @@ function buildShaderWater(seed: number): WaterView {
   });
 
   const meshes: THREE.Mesh[] = [];
+  const addOceanSlab = (
+    width: number,
+    depth: number,
+    cx: number,
+    cz: number,
+    shoreDistance: (x: number, z: number) => number,
+  ): void => {
+    const geo = new THREE.PlaneGeometry(width, depth, OCEAN_SEGMENTS, OCEAN_SEGMENTS).rotateX(-Math.PI / 2);
+    geo.translate(cx, 0, cz);
+    const pos = geo.attributes.position as THREE.BufferAttribute;
+    const shoreDepth = new Float32Array(pos.count);
+    for (let i = 0; i < pos.count; i++) {
+      // Near the map edge this stays shallow/foamy; farther out it turns into
+      // deeper ocean color. Purely visual: terrain/cliffs still own bounds.
+      shoreDepth[i] = Math.min(14, Math.max(0.05, shoreDistance(pos.getX(i), pos.getZ(i)) * 0.35));
+    }
+    geo.setAttribute('aShoreDepth', new THREE.BufferAttribute(shoreDepth, 1));
+    geo.computeBoundingBox();
+    geo.computeBoundingSphere();
+    const mesh = new THREE.Mesh(geo, material);
+    mesh.position.y = WATER_LEVEL - 0.02;
+    meshes.push(mesh);
+  };
   for (const zone of ZONES) {
     const depth = zone.zMax - zone.zMin;
     const geo = new THREE.PlaneGeometry(WORLD_SIZE, depth, SEGMENTS_PER_ZONE, SEGMENTS_PER_ZONE)
@@ -159,6 +184,12 @@ function buildShaderWater(seed: number): WaterView {
     mesh.position.y = WATER_LEVEL;
     meshes.push(mesh);
   }
+  const worldDepth = WORLD_MAX_Z - WORLD_MIN_Z;
+  const oceanDepth = worldDepth + OCEAN_EXTENT * 2;
+  addOceanSlab(OCEAN_EXTENT, oceanDepth, WORLD_MAX_X + OCEAN_EXTENT / 2, (WORLD_MIN_Z + WORLD_MAX_Z) / 2, (x) => x - WORLD_MAX_X);
+  addOceanSlab(OCEAN_EXTENT, oceanDepth, WORLD_MIN_X - OCEAN_EXTENT / 2, (WORLD_MIN_Z + WORLD_MAX_Z) / 2, (x) => WORLD_MIN_X - x);
+  addOceanSlab(WORLD_SIZE + OCEAN_EXTENT * 2, OCEAN_EXTENT, 0, WORLD_MIN_Z - OCEAN_EXTENT / 2, (_x, z) => WORLD_MIN_Z - z);
+  addOceanSlab(WORLD_SIZE + OCEAN_EXTENT * 2, OCEAN_EXTENT, 0, WORLD_MAX_Z + OCEAN_EXTENT / 2, (_x, z) => z - WORLD_MAX_Z);
   return { meshes, update: () => {} };
 }
 
@@ -175,13 +206,21 @@ function buildPhongWater(): WaterView {
     normalScale: new THREE.Vector2(0.8, 0.8),
   });
   const worldDepth = WORLD_MAX_Z - WORLD_MIN_Z;
-  const mesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(WORLD_SIZE, worldDepth).rotateX(-Math.PI / 2),
-    mat,
-  );
-  mesh.position.set(0, WATER_LEVEL, (WORLD_MIN_Z + WORLD_MAX_Z) / 2);
+  const oceanDepth = worldDepth + OCEAN_EXTENT * 2;
+  const makePlane = (width: number, depth: number, x: number, z: number, y = WATER_LEVEL): THREE.Mesh => {
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, depth).rotateX(-Math.PI / 2), mat);
+    mesh.position.set(x, y, z);
+    return mesh;
+  };
+  const meshes = [
+    makePlane(WORLD_SIZE, worldDepth, 0, (WORLD_MIN_Z + WORLD_MAX_Z) / 2),
+    makePlane(OCEAN_EXTENT, oceanDepth, WORLD_MAX_X + OCEAN_EXTENT / 2, (WORLD_MIN_Z + WORLD_MAX_Z) / 2, WATER_LEVEL - 0.02),
+    makePlane(OCEAN_EXTENT, oceanDepth, WORLD_MIN_X - OCEAN_EXTENT / 2, (WORLD_MIN_Z + WORLD_MAX_Z) / 2, WATER_LEVEL - 0.02),
+    makePlane(WORLD_SIZE + OCEAN_EXTENT * 2, OCEAN_EXTENT, 0, WORLD_MIN_Z - OCEAN_EXTENT / 2, WATER_LEVEL - 0.02),
+    makePlane(WORLD_SIZE + OCEAN_EXTENT * 2, OCEAN_EXTENT, 0, WORLD_MAX_Z + OCEAN_EXTENT / 2, WATER_LEVEL - 0.02),
+  ];
   return {
-    meshes: [mesh],
+    meshes,
     update(time: number): void {
       tex.offset.x = time * 0.008;
       tex.offset.y = time * 0.011;

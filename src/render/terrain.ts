@@ -138,7 +138,8 @@ const grassC = new THREE.Color(), grassDarkC = new THREE.Color(), grassYellowC =
 const dirtC = new THREE.Color(), sandC = new THREE.Color();
 const dirtDarkC = new THREE.Color(0x73592f);
 const rockC = new THREE.Color(0x7a7a72);
-const hazyPeakC = new THREE.Color(0xa8bdd4); // world-rim mountains, atmospheric
+const beachFoamC = new THREE.Color(0xd8c99a);
+const shoreWetC = new THREE.Color(0x8f7f5c);
 const snowCapC = new THREE.Color(0xedf3fa);
 const zonePalettes = ZONES.map((zn) => {
   const p = BIOME_PALETTE[zn.biome];
@@ -253,19 +254,19 @@ function sampleVertex(x: number, z: number, seed: number): VertexSample {
     cTmp.lerp(snowCapC, snow);
     lerpSplat(w, 2, clamp01((h - 22) / 10) * 0.8);
   }
-  // the rim wall reads as distant sunlit peaks, not a black cliff
+  // the coast rim turns sandy/wet instead of rocky: this matches the lowered
+  // beach shelf in terrainHeight and makes the edge read as shoreline.
   const edge = Math.max(
-    Math.abs(x) - (WORLD_MAX_X - 32),
-    WORLD_MIN_Z + 32 - z,
-    z - (WORLD_MAX_Z - 32),
+    Math.abs(x) - (WORLD_MAX_X - 42),
+    WORLD_MIN_Z + 42 - z,
+    z - (WORLD_MAX_Z - 42),
   );
-  const rim = clamp01(edge / 26);
+  const rim = clamp01(edge / 42);
   if (rim > 0) {
-    cTmp.lerp(hazyPeakC, rim * 0.9);
-    const rimSnow = clamp01((h - 26) / 16) * rim * 0.8;
-    cTmp.lerp(snowCapC, rimSnow);
-    snow = Math.max(snow, rimSnow);
-    lerpSplat(w, 2, rim * 0.85);
+    cTmp.lerp(shoreWetC, rim * 0.45);
+    cTmp.lerp(beachFoamC, rim * 0.65);
+    lerpSplat(w, 3, rim * 0.92);
+    snow *= 1 - rim;
   }
   // mud rides the dirt layer wherever the marsh palette is active
   const mud = marshWeightAt(z);
