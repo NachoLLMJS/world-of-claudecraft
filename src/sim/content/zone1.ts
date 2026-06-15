@@ -39,7 +39,7 @@ export const ZONE1_ZONE: ZoneDef = {
 
 export const ZONE1_MOBS: Record<string, MobTemplate> = {
   forest_wolf: {
-    id: 'forest_wolf', name: 'Forest Wolf', minLevel: 1, maxLevel: 2, family: 'beast',
+    id: 'forest_wolf', name: 'Vale Blobdog', minLevel: 1, maxLevel: 2, family: 'beast',
     hpBase: 28, hpPerLevel: 14, dmgBase: 3, dmgPerLevel: 1.6, attackSpeed: 2.0,
     armorPerLevel: 10, moveSpeed: 8, aggroRadius: 10,
     loot: [
@@ -49,7 +49,7 @@ export const ZONE1_MOBS: Record<string, MobTemplate> = {
     scale: 0.9, color: 0x7f8c8d,
   },
   old_greyjaw: {
-    id: 'old_greyjaw', name: 'Old Greyjaw', minLevel: 4, maxLevel: 4, family: 'beast', rare: true,
+    id: 'old_greyjaw', name: 'Old Greyblob', minLevel: 4, maxLevel: 4, family: 'beast', rare: true,
     hpBase: 110, hpPerLevel: 20, dmgBase: 5, dmgPerLevel: 2.0, attackSpeed: 1.8,
     armorPerLevel: 16, moveSpeed: 8.5, aggroRadius: 12,
     loot: [
@@ -60,7 +60,7 @@ export const ZONE1_MOBS: Record<string, MobTemplate> = {
     scale: 1.25, color: 0x566061,
   },
   wild_boar: {
-    id: 'wild_boar', name: 'Wild Boar', minLevel: 2, maxLevel: 3, family: 'beast',
+    id: 'wild_boar', name: 'Wild Mushnub', minLevel: 2, maxLevel: 3, family: 'beast',
     hpBase: 34, hpPerLevel: 16, dmgBase: 4, dmgPerLevel: 1.8, attackSpeed: 2.2,
     armorPerLevel: 14, moveSpeed: 7.5, aggroRadius: 9,
     loot: [
@@ -71,7 +71,7 @@ export const ZONE1_MOBS: Record<string, MobTemplate> = {
     scale: 0.85, color: 0x935116,
   },
   webwood_spider: {
-    id: 'webwood_spider', name: 'Webwood Lurker', minLevel: 2, maxLevel: 4, family: 'spider',
+    id: 'webwood_spider', name: 'Webwood Spiker', minLevel: 2, maxLevel: 4, family: 'spider',
     hpBase: 30, hpPerLevel: 15, dmgBase: 4, dmgPerLevel: 1.7, attackSpeed: 1.8,
     armorPerLevel: 8, moveSpeed: 8, aggroRadius: 10,
     loot: [
@@ -82,7 +82,7 @@ export const ZONE1_MOBS: Record<string, MobTemplate> = {
     scale: 0.9, color: 0x4a235a,
   },
   mudfin_murloc: {
-    id: 'mudfin_murloc', name: 'Mudfin Skulker', minLevel: 3, maxLevel: 5, family: 'murloc',
+    id: 'mudfin_murloc', name: 'Mudfin Croaker', minLevel: 3, maxLevel: 5, family: 'murloc',
     hpBase: 36, hpPerLevel: 17, dmgBase: 5, dmgPerLevel: 1.9, attackSpeed: 1.9,
     armorPerLevel: 12, moveSpeed: 8, aggroRadius: 13, // murlocs aggro from far and bring friends
     loot: [
@@ -93,7 +93,7 @@ export const ZONE1_MOBS: Record<string, MobTemplate> = {
     scale: 0.8, color: 0x52be80,
   },
   tunnel_rat: {
-    id: 'tunnel_rat', name: 'Tunnel Rat Digger', minLevel: 4, maxLevel: 6, family: 'kobold',
+    id: 'tunnel_rat', name: 'Candle Cactoro', minLevel: 4, maxLevel: 6, family: 'kobold',
     hpBase: 42, hpPerLevel: 18, dmgBase: 6, dmgPerLevel: 2.0, attackSpeed: 2.1,
     armorPerLevel: 16, moveSpeed: 7, aggroRadius: 10,
     loot: [
@@ -105,7 +105,7 @@ export const ZONE1_MOBS: Record<string, MobTemplate> = {
     scale: 0.85, color: 0x9c640c,
   },
   vale_bandit: {
-    id: 'vale_bandit', name: 'Vale Bandit', minLevel: 3, maxLevel: 5, family: 'humanoid',
+    id: 'vale_bandit', name: 'Vale Shadowblade', minLevel: 3, maxLevel: 5, family: 'humanoid',
     hpBase: 40, hpPerLevel: 18, dmgBase: 5, dmgPerLevel: 2.0, attackSpeed: 2.0,
     armorPerLevel: 20, moveSpeed: 7, aggroRadius: 11,
     loot: [
@@ -116,7 +116,7 @@ export const ZONE1_MOBS: Record<string, MobTemplate> = {
     scale: 1.0, color: 0x943126,
   },
   restless_bones: {
-    id: 'restless_bones', name: 'Restless Bones', minLevel: 5, maxLevel: 7, family: 'undead',
+    id: 'restless_bones', name: 'Restless Skullfiend', minLevel: 5, maxLevel: 7, family: 'undead',
     hpBase: 46, hpPerLevel: 19, dmgBase: 7, dmgPerLevel: 2.1, attackSpeed: 2.3,
     armorPerLevel: 14, moveSpeed: 6.5, aggroRadius: 11,
     loot: [
@@ -127,7 +127,7 @@ export const ZONE1_MOBS: Record<string, MobTemplate> = {
     scale: 1.0, color: 0xd5dbdb,
   },
   gorrak: {
-    id: 'gorrak', name: 'Gorrak the Ruthless', minLevel: 6, maxLevel: 6, family: 'humanoid',
+    id: 'gorrak', name: 'Gorrak the Sporelord', minLevel: 6, maxLevel: 6, family: 'humanoid',
     hpBase: 160, hpPerLevel: 30, dmgBase: 8, dmgPerLevel: 2.4, attackSpeed: 2.4,
     armorPerLevel: 30, moveSpeed: 7, aggroRadius: 13, boss: true,
     loot: [
@@ -200,7 +200,7 @@ export const ZONE1_NPCS: Record<string, NpcDef> = {
   foreman_odell: {
     id: 'foreman_odell', name: 'Foreman Odell', title: 'Mine Foreman',
     // in town (south edge, scowling toward his overrun dig) — his old spot
-    // sat inside the Tunnel Rat spawn radius
+    // sat inside the Candle Cactoro spawn radius
     pos: { x: -4, z: -14 }, facing: -2.14, color: 0xa04000,
     questIds: ['q_mine'],
     greeting: "Whole dig's crawling with those candle-headed vermin!",
@@ -217,15 +217,15 @@ export const ZONE1_QUESTS: Record<string, QuestDef> = {
     giverNpcId: 'marshal_redbrook', turnInNpcId: 'marshal_redbrook',
     text: 'The forest wolves grow bold, snapping at travelers on the north road. Thin their numbers, $N. Slay 8 Forest Wolves and Eastbrook will breathe easier.',
     completionText: 'Fine work. The road feels safer already.',
-    objectives: [{ type: 'kill', targetMobId: 'forest_wolf', count: 8, label: 'Forest Wolf slain' }],
+    objectives: [{ type: 'kill', targetMobId: 'forest_wolf', count: 8, label: 'Vale Blobdog slain' }],
     xpReward: 250, copperReward: 75, itemRewards: {},
   },
   q_greyjaw: {
     id: 'q_greyjaw', name: 'The Old Wolf',
     giverNpcId: 'marshal_redbrook', turnInNpcId: 'marshal_redbrook',
-    text: 'There is one wolf no trap has held: Old Greyjaw. He has taken three hounds and a stable boy\'s arm. He prowls the deep woods north of the wolf runs. Bring me his fang.',
+    text: 'There is one wolf no trap has held: Old Greyblob. He has taken three hounds and a stable boy\'s arm. He prowls the deep woods north of the wolf runs. Bring me his fang.',
     completionText: 'So the old devil is dead at last. The stable boy will sleep easier — and so will I.',
-    objectives: [{ type: 'collect', itemId: 'greyjaw_fang', count: 1, label: "Old Greyjaw's Fang" }],
+    objectives: [{ type: 'collect', itemId: 'greyjaw_fang', count: 1, label: "Old Greyblob's Fang" }],
     xpReward: 450, copperReward: 150,
     itemRewards: { warrior: 'greyjaw_pelt_cloak', mage: 'greyjaw_pelt_cloak', rogue: 'greyjaw_pelt_cloak' },
     requiresQuest: 'q_wolves',
@@ -250,10 +250,10 @@ export const ZONE1_QUESTS: Record<string, QuestDef> = {
   q_spiders: {
     id: 'q_spiders', name: 'Webwood Menace',
     giverNpcId: 'apothecary_lin', turnInNpcId: 'apothecary_lin',
-    text: 'The lurkers in the eastern woods spin a silk I need for my poultices — and they have grown far too numerous besides. Cull 6 Webwood Lurkers and cut 4 silk glands from their bellies.',
+    text: 'The lurkers in the eastern woods spin a silk I need for my poultices — and they have grown far too numerous besides. Cull 6 Webwood Spikers and cut 4 silk glands from their bellies.',
     completionText: 'Ugh, still twitching. Perfect. Here, you\'ve earned this.',
     objectives: [
-      { type: 'kill', targetMobId: 'webwood_spider', count: 6, label: 'Webwood Lurker slain' },
+      { type: 'kill', targetMobId: 'webwood_spider', count: 6, label: 'Webwood Spiker slain' },
       { type: 'collect', itemId: 'webwood_silk', count: 4, label: 'Webwood Silk Gland' },
     ],
     xpReward: 420, copperReward: 140, itemRewards: {},
@@ -264,25 +264,25 @@ export const ZONE1_QUESTS: Record<string, QuestDef> = {
     giverNpcId: 'fisherman_brandt', turnInNpcId: 'fisherman_brandt',
     text: 'Twenty years I have fished Mirror Lake, and never lost a net until those gurgling fish-men crawled out of the shallows. Drive the Mudfin back — slay 8 of them. And watch yourself: where there is one murloc, there are five.',
     completionText: 'Hah! That will teach them to mind their own mudholes.',
-    objectives: [{ type: 'kill', targetMobId: 'mudfin_murloc', count: 8, label: 'Mudfin Skulker slain' }],
+    objectives: [{ type: 'kill', targetMobId: 'mudfin_murloc', count: 8, label: 'Mudfin Croaker slain' }],
     xpReward: 520, copperReward: 180, itemRewards: {},
     minLevel: 3,
   },
   q_mine: {
     id: 'q_mine', name: 'Rats in the Mine',
     giverNpcId: 'foreman_odell', turnInNpcId: 'foreman_odell',
-    text: 'We struck a fine copper vein and then those kobold vermin came boiling out of the hillside. My crew will not set foot in the dig until it is cleared. Put down 10 Tunnel Rat Diggers.',
+    text: 'We struck a fine copper vein and then those kobold vermin came boiling out of the hillside. My crew will not set foot in the dig until it is cleared. Put down 10 Candle Cactoros.',
     completionText: 'Ha! Back to work, lads! You have my thanks — and my coin.',
-    objectives: [{ type: 'kill', targetMobId: 'tunnel_rat', count: 10, label: 'Tunnel Rat Digger slain' }],
+    objectives: [{ type: 'kill', targetMobId: 'tunnel_rat', count: 10, label: 'Candle Cactoro slain' }],
     xpReward: 620, copperReward: 220, itemRewards: {},
     minLevel: 4,
   },
   q_bones: {
     id: 'q_bones', name: 'The Restless Dead',
     giverNpcId: 'brother_aldric', turnInNpcId: 'brother_aldric',
-    text: 'The old ruin on the northwest hill was a chapel once, and its yard a resting place. Something has stirred the dead from their sleep. Grant them peace, $N — return 8 Restless Bones to the earth.',
+    text: 'The old ruin on the northwest hill was a chapel once, and its yard a resting place. Something has stirred the dead from their sleep. Grant them peace, $N — return 8 Restless Skullfiend to the earth.',
     completionText: 'May they rest now, and may the Light forgive whatever woke them.',
-    objectives: [{ type: 'kill', targetMobId: 'restless_bones', count: 8, label: 'Restless Bones laid to rest' }],
+    objectives: [{ type: 'kill', targetMobId: 'restless_bones', count: 8, label: 'Restless Skullfiend laid to rest' }],
     xpReward: 700, copperReward: 260, itemRewards: {},
     minLevel: 5,
   },
@@ -308,7 +308,7 @@ export const ZONE1_QUESTS: Record<string, QuestDef> = {
     id: 'q_names_of_the_dead', name: 'The Names of the Dead',
     giverNpcId: 'brother_aldric', turnInNpcId: 'brother_aldric',
     text: 'If the Gravecallers raised our dead, I must know whose graves they robbed. The chapel sexton kept a burial ledger, and the wind has scattered its pages across the chapel yard. Gather 3 of them for me, $N — the dead deserve to be called by their names.',
-    completionText: 'These poor souls... and look here. Sexton Marrow — the chapel\'s own living caretaker — his grave the first disturbed. Morthen began with the very man who buried Eastbrook\'s dead.',
+    completionText: 'These poor souls... and look here. Sexton Marrow-Skull — the chapel\'s own living caretaker — his grave the first disturbed. Morthen began with the very man who buried Eastbrook\'s dead.',
     objectives: [{ type: 'collect', itemId: 'weathered_ledger_page', count: 3, label: 'Weathered Ledger Page' }],
     xpReward: 600, copperReward: 250, itemRewards: {},
     requiresQuest: 'q_whispers',
@@ -316,9 +316,9 @@ export const ZONE1_QUESTS: Record<string, QuestDef> = {
   q_silence_the_call: {
     id: 'q_silence_the_call', name: 'Silence the Call',
     giverNpcId: 'brother_aldric', turnInNpcId: 'brother_aldric',
-    text: 'Every name in that ledger is a soul Morthen means to drag from the earth, and the chapel yard already crawls with those he has called. Return 12 Restless Bones to their graves, $N, before the Gravecaller\'s whisper swells into a chorus.',
+    text: 'Every name in that ledger is a soul Morthen means to drag from the earth, and the chapel yard already crawls with those he has called. Return 12 Restless Skullfiend to their graves, $N, before the Gravecaller\'s whisper swells into a chorus.',
     completionText: 'The yard grows quieter — but the calling has not stopped. It rises from below now, $N. From the crypt itself.',
-    objectives: [{ type: 'kill', targetMobId: 'restless_bones', count: 12, label: 'Restless Bones silenced' }],
+    objectives: [{ type: 'kill', targetMobId: 'restless_bones', count: 12, label: 'Restless Skullfiend silenced' }],
     xpReward: 750, copperReward: 300, itemRewards: {},
     requiresQuest: 'q_names_of_the_dead',
   },
@@ -337,9 +337,9 @@ export const ZONE1_QUESTS: Record<string, QuestDef> = {
   q_hollow: {
     id: 'q_hollow', name: 'Into the Hollow',
     giverNpcId: 'brother_aldric', turnInNpcId: 'brother_aldric',
-    text: 'Morthen the Gravecaller waits at the bottom of the Hollow Crypt, ringed by the elite dead he has raised. He is far beyond any one hero — take four companions, no fewer. End him, and the Vale\'s dead will finally sleep.',
+    text: 'Morthen the Grave Demon waits at the bottom of the Hollow Crypt, ringed by the elite dead he has raised. He is far beyond any one hero — take four companions, no fewer. End him, and the Vale\'s dead will finally sleep.',
     completionText: 'The whispering has stopped. You have done what the whole Vale could not, $N — the dead sleep, and Eastbrook owes you everything it has.',
-    objectives: [{ type: 'kill', targetMobId: 'morthen', count: 1, label: 'Morthen the Gravecaller slain' }],
+    objectives: [{ type: 'kill', targetMobId: 'morthen', count: 1, label: 'Morthen the Grave Demon slain' }],
     xpReward: 1500, copperReward: 10000,
     itemRewards: { warrior: 'gravecaller_blade', rogue: 'widowfang_dirk', mage: 'gravecaller_staff' },
     requiresQuest: 'q_rite',
@@ -348,9 +348,9 @@ export const ZONE1_QUESTS: Record<string, QuestDef> = {
   q_sexton: {
     id: 'q_sexton', name: "The Sexton's Bell",
     giverNpcId: 'brother_aldric', turnInNpcId: 'brother_aldric',
-    text: 'The ledger named him and the crypt holds him: Sexton Marrow, the chapel\'s caretaker, the first man Morthen raised — guarding his master\'s door in death as faithfully as he kept the chapel in life. Take four companions into the Hollow Crypt and grant the old sexton the rest he was robbed of, $N.',
+    text: 'The ledger named him and the crypt holds him: Sexton Marrow-Skull, the chapel\'s caretaker, the first man Morthen raised — guarding his master\'s door in death as faithfully as he kept the chapel in life. Take four companions into the Hollow Crypt and grant the old sexton the rest he was robbed of, $N.',
     completionText: 'So Marrow is free at last. Ring no bell for him — he heard enough of them in life.',
-    objectives: [{ type: 'kill', targetMobId: 'sexton_marrow', count: 1, label: 'Sexton Marrow laid to rest' }],
+    objectives: [{ type: 'kill', targetMobId: 'sexton_marrow', count: 1, label: 'Sexton Marrow-Skull laid to rest' }],
     xpReward: 1000, copperReward: 600,
     itemRewards: { warrior: 'marrowtread_boots', mage: 'sextons_slippers', rogue: 'gravewalker_softboots' },
     requiresQuest: 'q_rite',
@@ -368,9 +368,9 @@ export const ZONE1_QUESTS: Record<string, QuestDef> = {
   q_bandits: {
     id: 'q_bandits', name: 'Bandits of the Vale',
     giverNpcId: 'marshal_redbrook', turnInNpcId: 'marshal_redbrook',
-    text: 'A pack of cutthroats has made camp in the southwest hills. They have robbed three wagons this week. Drive them out — slay 10 Vale Bandits.',
+    text: 'A pack of cutthroats has made camp in the southwest hills. They have robbed three wagons this week. Drive them out — slay 10 Vale Shadowblades.',
     completionText: 'Ten fewer knives in the dark. Take this — you have earned it.',
-    objectives: [{ type: 'kill', targetMobId: 'vale_bandit', count: 10, label: 'Vale Bandit slain' }],
+    objectives: [{ type: 'kill', targetMobId: 'vale_bandit', count: 10, label: 'Vale Shadowblade slain' }],
     xpReward: 550, copperReward: 200,
     itemRewards: { warrior: 'redbrook_blade', mage: 'apprentice_staff', rogue: 'keen_dirk' },
     requiresQuest: 'q_wolves',

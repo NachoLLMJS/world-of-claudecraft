@@ -75,8 +75,10 @@ interface EntityView {
   clickTarget: THREE.Object3D;
   nameplate: HTMLDivElement;
   nameEl: HTMLDivElement;
+  levelEl: HTMLDivElement;
   hpBar: HTMLDivElement;
   hpFill: HTMLDivElement;
+  hpText: HTMLSpanElement;
   markerEl: HTMLDivElement;
   sparkle?: THREE.Sprite; // ground objects
   objectMesh?: THREE.Object3D;
@@ -550,12 +552,19 @@ export class Renderer {
     const nameEl = document.createElement('div');
     nameEl.className = 'np-name';
     nameEl.textContent = e.name;
+    const nameRow = document.createElement('div');
+    nameRow.className = 'np-name-row';
+    const levelEl = document.createElement('div');
+    levelEl.className = 'np-level';
+    nameRow.append(levelEl, nameEl);
     const hpBar = document.createElement('div');
     hpBar.className = 'np-hpbar';
     const hpFill = document.createElement('div');
     hpFill.className = 'np-hpfill';
-    hpBar.appendChild(hpFill);
-    np.append(marker, nameEl, hpBar);
+    const hpText = document.createElement('span');
+    hpText.className = 'np-hptext';
+    hpBar.append(hpFill, hpText);
+    np.append(marker, nameRow, hpBar);
     this.nameplateLayer.appendChild(np);
 
     // object views gate their own casters; character shadows live in visual
@@ -563,7 +572,7 @@ export class Renderer {
     if (!visual) collectCasters(group, objectCasters);
     this.views.set(e.id, {
       group, visual, sheepVisual: null, bearVisual: null, height, clickTarget,
-      nameplate: np, nameEl, hpBar, hpFill, markerEl: marker, sparkle, objectMesh, portal,
+      nameplate: np, nameEl, levelEl, hpBar, hpFill, hpText, markerEl: marker, sparkle, objectMesh, portal,
       objectCasters, shadowOn: true, isFar: false,
       lastX: e.pos.x, lastZ: e.pos.z,
       loco: newLocoTrack(),
@@ -1052,6 +1061,11 @@ export class Renderer {
       v.nameplate.style.display = '';
       v.nameplate.style.transform = `translate(${sx.toFixed(0)}px, ${sy.toFixed(0)}px) translate(-50%, -100%)`;
 
+      v.nameplate.classList.remove('mobplate', 'elite', 'boss', 'dead', 'lowhp');
+      v.levelEl.style.display = 'none';
+      v.markerEl.style.display = '';
+      v.hpText.textContent = '';
+
       if (e.kind === 'object') {
         // dungeon doorways announce themselves
         v.nameEl.style.color = '#c084ff';
@@ -1088,11 +1102,23 @@ export class Renderer {
         const diff = e.level - p.level;
         const template = MOBS[e.templateId];
         const elite = !!template?.elite;
-        v.nameEl.style.color = e.dead ? '#999' : diff >= 3 ? '#ff4444' : diff >= 1 ? '#ffaa33' : diff >= -2 ? '#ffe97a' : diff >= -5 ? '#7fdc4f' : '#9d9d9d';
-        v.nameEl.textContent = e.dead ? `${e.name} (corpse)` : `[${e.level}${elite ? '+' : ''}] ${e.name}`;
+        const boss = !!template?.boss;
+        const pct = Math.max(0, Math.min(1, e.hp / Math.max(1, e.maxHp)));
+        v.nameplate.classList.add('mobplate');
+        if (elite) v.nameplate.classList.add('elite');
+        if (boss) v.nameplate.classList.add('boss');
+        if (e.dead) v.nameplate.classList.add('dead');
+        if (!e.dead && pct <= 0.28) v.nameplate.classList.add('lowhp');
+        v.nameEl.style.color = e.dead ? '#9a9188' : diff >= 3 ? '#ff5a5a' : diff >= 1 ? '#ffae42' : diff >= -2 ? '#ffe48a' : diff >= -5 ? '#7fe278' : '#a7a7a7';
+        v.nameEl.textContent = e.dead ? `${e.name} corpse` : e.name;
+        v.levelEl.style.display = e.dead ? 'none' : 'inline-flex';
+        v.levelEl.textContent = `${e.level}${elite ? '+' : ''}`;
         v.hpBar.style.display = e.dead ? 'none' : '';
-        v.hpFill.style.width = `${(100 * e.hp / Math.max(1, e.maxHp)).toFixed(1)}%`;
-        v.markerEl.textContent = e.lootable ? '$' : elite && !e.dead ? '◆' : '';
+        v.hpFill.style.width = `${(100 * pct).toFixed(1)}%`;
+        v.hpText.textContent = `${Math.max(0, Math.ceil(e.hp))} / ${Math.ceil(e.maxHp)}`;
+        const mobMarker = e.lootable ? '✦ LOOT' : boss && !e.dead ? 'BOSS' : elite && !e.dead ? 'ELITE' : '';
+        v.markerEl.textContent = mobMarker;
+        v.markerEl.style.display = mobMarker ? '' : 'none';
         v.markerEl.className = 'np-marker loot';
       }
     }

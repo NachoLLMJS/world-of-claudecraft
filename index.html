@@ -154,14 +154,40 @@
   /* ---------- nameplates ---------- */
   .nameplate { position: absolute; left: 0; top: 0; text-align: center; pointer-events: none;
     text-shadow: 1px 1px 2px #000; white-space: nowrap; will-change: transform; }
+  .np-name-row { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
   .np-name { font-size: 12px; font-weight: bold; font-family: var(--title-font); letter-spacing: 0.3px; }
-  .np-hpbar { width: 78px; height: 6px; background: #2a0000; border: 1px solid #000; margin: 1px auto 0; border-radius: 2px; }
-  .np-hpfill { height: 100%; background: linear-gradient(#48e060, #1d7a32); border-radius: 2px; }
+  .np-level { display: none; align-items: center; justify-content: center; position: relative;
+    width: 28px; height: 28px; flex: 0 0 28px; margin-right: 1px; padding-top: 6px;
+    border-radius: 50%; color: #fff7d2; font: 950 14px/1 var(--ui-font); letter-spacing: -.2px;
+    background: radial-gradient(circle at 35% 28%, #fff0a9 0 10%, #d98225 33%, #7b2017 68%, #260806 100%);
+    border: 2px solid #ffe099; box-shadow: 0 0 0 1px rgba(60, 16, 8, .95), 0 2px 6px rgba(0,0,0,.75), inset 0 1px 3px rgba(255,255,255,.55), 0 0 9px rgba(255, 120, 36, .42);
+    text-shadow: 0 1px 2px #000, 0 0 4px #000; }
+  .np-level::before { content: 'LVL'; position: absolute; top: 3px; left: 0; right: 0;
+    font: 900 6px/1 var(--ui-font); letter-spacing: .8px; color: #251005; text-shadow: 0 1px rgba(255, 234, 168, .5); }
+  .np-hpbar { position: relative; overflow: hidden; width: 78px; height: 6px; background: #2a0000; border: 1px solid #000; margin: 1px auto 0; border-radius: 2px; }
+  .np-hpfill { height: 100%; background: linear-gradient(#48e060, #1d7a32); border-radius: 2px; transition: width .16s ease-out; }
+  .np-hptext { display: none; position: absolute; inset: 0; place-items: center; font: 800 9px/1 var(--ui-font); color: #fff4d6; text-shadow: 0 1px 2px #000, 0 0 4px #000; }
   .np-marker { font-size: 24px; font-weight: bold; height: 26px; font-family: var(--title-font); }
   .np-marker.avail { color: var(--gold); text-shadow: 0 0 6px #ffd10088, 1px 1px 2px #000; }
   .np-marker.ready { color: var(--gold); text-shadow: 0 0 6px #ffd10088, 1px 1px 2px #000; }
   .np-marker.active { color: #b9b9b9; }
   .np-marker.loot { color: var(--gold); font-size: 14px; }
+  .nameplate.mobplate { min-width: 150px; width: max-content; padding: 4px 9px 6px; border-radius: 12px;
+    background: radial-gradient(circle at 50% 0%, rgba(255, 225, 147, .18), transparent 38%), linear-gradient(180deg, rgba(29, 20, 17, .86), rgba(9, 7, 7, .66));
+    border: 1px solid rgba(250, 198, 92, .38); box-shadow: 0 7px 18px rgba(0,0,0,.48), inset 0 1px rgba(255,255,255,.12), 0 0 12px rgba(198, 72, 31, .18);
+    text-shadow: 0 2px 3px #000, 0 0 6px rgba(0,0,0,.8); backdrop-filter: blur(2px); }
+  .nameplate.mobplate .np-name-row { gap: 7px; }
+  .nameplate.mobplate .np-name { overflow: visible; text-overflow: clip; font-size: 13px; letter-spacing: .55px; text-transform: uppercase; }
+  .nameplate.mobplate .np-hpbar { width: 118px; height: 11px; margin-top: 5px; border-radius: 999px; background: linear-gradient(180deg, #210607, #070202); border: 1px solid rgba(255, 224, 157, .35); box-shadow: inset 0 0 7px rgba(0,0,0,.8), 0 1px 0 rgba(255,255,255,.1); }
+  .nameplate.mobplate .np-hpfill { border-radius: 999px; background: linear-gradient(90deg, #7e1017 0%, #d11f2f 52%, #ff7048 100%); box-shadow: inset 0 1px rgba(255,255,255,.35), 0 0 8px rgba(236, 50, 38, .45); }
+  .nameplate.mobplate.lowhp .np-hpfill { background: linear-gradient(90deg, #5b0000, #ff2d25, #ffd06b); animation: enemy-lowhp-pulse .72s ease-in-out infinite alternate; }
+  .nameplate.mobplate .np-hptext { display: grid; }
+  .nameplate.mobplate .np-marker { height: 13px; margin-bottom: 1px; font: 900 10px/1 var(--ui-font); letter-spacing: 1.5px; color: #ffd98a; text-shadow: 0 0 7px rgba(255, 169, 41, .9), 0 2px 2px #000; }
+  .nameplate.mobplate .np-marker:empty { display: none; }
+  .nameplate.mobplate.elite { border-color: rgba(255, 213, 95, .7); box-shadow: 0 8px 20px rgba(0,0,0,.55), 0 0 16px rgba(255, 181, 42, .28), inset 0 1px rgba(255,255,255,.14); }
+  .nameplate.mobplate.boss { border-color: rgba(255, 81, 81, .85); box-shadow: 0 8px 22px rgba(0,0,0,.6), 0 0 20px rgba(255, 47, 47, .34), inset 0 1px rgba(255,255,255,.14); }
+  .nameplate.mobplate.dead { filter: grayscale(.6); opacity: .82; }
+  @keyframes enemy-lowhp-pulse { from { filter: brightness(1); } to { filter: brightness(1.35); } }
 
   /* ---------- chat bubbles (/say, /yell) ---------- */
   .chat-bubble { position: absolute; left: 0; top: 0; max-width: 220px; pointer-events: none;

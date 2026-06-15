@@ -45,7 +45,7 @@ export const ZONE3_ROADS: { x: number; z: number }[][] = [
 
 export const ZONE3_MOBS: Record<string, MobTemplate> = {
   ridge_stalker: {
-    id: 'ridge_stalker', name: 'Ridge Stalker', minLevel: 13, maxLevel: 14, family: 'beast',
+    id: 'ridge_stalker', name: 'Ridge Blobdog', minLevel: 13, maxLevel: 14, family: 'beast',
     hpBase: 58, hpPerLevel: 21, dmgBase: 10, dmgPerLevel: 2.5, attackSpeed: 1.9,
     armorPerLevel: 14, moveSpeed: 8, aggroRadius: 11,
     loot: [
@@ -55,7 +55,7 @@ export const ZONE3_MOBS: Record<string, MobTemplate> = {
     scale: 0.95, color: 0x8c8270,
   },
   deeprock_kobold: {
-    id: 'deeprock_kobold', name: 'Deeprock Tunneler', minLevel: 14, maxLevel: 15, family: 'kobold',
+    id: 'deeprock_kobold', name: 'Deeprock Cactoro', minLevel: 14, maxLevel: 15, family: 'kobold',
     hpBase: 60, hpPerLevel: 22, dmgBase: 10, dmgPerLevel: 2.5, attackSpeed: 2.1,
     armorPerLevel: 18, moveSpeed: 7, aggroRadius: 10,
     loot: [
@@ -66,7 +66,7 @@ export const ZONE3_MOBS: Record<string, MobTemplate> = {
     scale: 0.85, color: 0x9c7a3c,
   },
   thornpeak_ogre: {
-    id: 'thornpeak_ogre', name: 'Thornpeak Ogre', minLevel: 15, maxLevel: 16, family: 'ogre',
+    id: 'thornpeak_ogre', name: 'Thornpeak Yeti', minLevel: 15, maxLevel: 16, family: 'ogre',
     hpBase: 66, hpPerLevel: 23, dmgBase: 11, dmgPerLevel: 2.6, attackSpeed: 2.6,
     armorPerLevel: 22, moveSpeed: 7, aggroRadius: 11,
     loot: [
@@ -76,7 +76,7 @@ export const ZONE3_MOBS: Record<string, MobTemplate> = {
     scale: 1.3, color: 0x9e7b53,
   },
   ogre_crusher: {
-    id: 'ogre_crusher', name: 'Thornpeak Crusher', minLevel: 16, maxLevel: 17, family: 'ogre', elite: true,
+    id: 'ogre_crusher', name: 'Thornpeak Yeti Crusher', minLevel: 16, maxLevel: 17, family: 'ogre', elite: true,
     hpBase: 64, hpPerLevel: 23, dmgBase: 11, dmgPerLevel: 2.6, attackSpeed: 2.6,
     armorPerLevel: 24, moveSpeed: 7, aggroRadius: 12,
     loot: [
@@ -86,7 +86,7 @@ export const ZONE3_MOBS: Record<string, MobTemplate> = {
     scale: 1.35, color: 0x7e5c3e,
   },
   warlord_drogmar: {
-    id: 'warlord_drogmar', name: 'Warlord Drogmar', minLevel: 17, maxLevel: 17, family: 'ogre',
+    id: 'warlord_drogmar', name: 'Drogmar the Snowbrute', minLevel: 17, maxLevel: 17, family: 'ogre',
     elite: true, boss: true,
     hpBase: 200, hpPerLevel: 30, dmgBase: 12, dmgPerLevel: 2.7, attackSpeed: 2.6,
     armorPerLevel: 28, moveSpeed: 7, aggroRadius: 14,
@@ -95,7 +95,7 @@ export const ZONE3_MOBS: Record<string, MobTemplate> = {
     scale: 1.5, color: 0x8c3b2e,
   },
   stormcrag_elemental: {
-    id: 'stormcrag_elemental', name: 'Stormcrag Elemental', minLevel: 17, maxLevel: 18, family: 'elemental',
+    id: 'stormcrag_elemental', name: 'Stormcrag Goleling', minLevel: 17, maxLevel: 18, family: 'elemental',
     hpBase: 62, hpPerLevel: 22, dmgBase: 12, dmgPerLevel: 2.7, attackSpeed: 2.2,
     armorPerLevel: 20, moveSpeed: 6.5, aggroRadius: 11,
     loot: [
@@ -107,7 +107,7 @@ export const ZONE3_MOBS: Record<string, MobTemplate> = {
     scale: 1.1, color: 0x5dade2,
   },
   shardlord_kazzix: {
-    id: 'shardlord_kazzix', name: 'Shardlord Kazzix', minLevel: 18, maxLevel: 18, family: 'elemental', rare: true,
+    id: 'shardlord_kazzix', name: 'Kazzix the Shard Goleling', minLevel: 18, maxLevel: 18, family: 'elemental', rare: true,
     hpBase: 160, hpPerLevel: 28, dmgBase: 13, dmgPerLevel: 2.8, attackSpeed: 2.2,
     armorPerLevel: 24, moveSpeed: 7, aggroRadius: 12,
     loot: [
@@ -118,7 +118,7 @@ export const ZONE3_MOBS: Record<string, MobTemplate> = {
     scale: 1.3, color: 0xaed6f1,
   },
   wyrmcult_zealot: {
-    id: 'wyrmcult_zealot', name: 'Wyrmcult Zealot', minLevel: 17, maxLevel: 19, family: 'humanoid',
+    id: 'wyrmcult_zealot', name: 'Wyrmcult Shadowblade', minLevel: 17, maxLevel: 19, family: 'humanoid',
     hpBase: 62, hpPerLevel: 22, dmgBase: 12, dmgPerLevel: 2.7, attackSpeed: 2.0,
     armorPerLevel: 20, moveSpeed: 7, aggroRadius: 11,
     loot: [
@@ -129,7 +129,7 @@ export const ZONE3_MOBS: Record<string, MobTemplate> = {
     scale: 1.0, color: 0x76448a,
   },
   wyrmcult_necromancer: {
-    id: 'wyrmcult_necromancer', name: 'Wyrmcult Necromancer', minLevel: 18, maxLevel: 19, family: 'humanoid',
+    id: 'wyrmcult_necromancer', name: 'Wyrmcult Hexblob', minLevel: 18, maxLevel: 19, family: 'humanoid',
     hpBase: 58, hpPerLevel: 21, dmgBase: 13, dmgPerLevel: 2.8, attackSpeed: 2.0,
     armorPerLevel: 16, moveSpeed: 7, aggroRadius: 11,
     loot: [
@@ -140,7 +140,7 @@ export const ZONE3_MOBS: Record<string, MobTemplate> = {
     scale: 1.0, color: 0x533566,
   },
   boneclad_revenant: {
-    id: 'boneclad_revenant', name: 'Boneclad Revenant', minLevel: 18, maxLevel: 19, family: 'undead',
+    id: 'boneclad_revenant', name: 'Boneclad Demon', minLevel: 18, maxLevel: 19, family: 'undead',
     hpBase: 66, hpPerLevel: 23, dmgBase: 12, dmgPerLevel: 2.7, attackSpeed: 2.3,
     armorPerLevel: 18, moveSpeed: 6.5, aggroRadius: 11,
     loot: [
@@ -256,7 +256,7 @@ export const ZONE3_QUESTS: Record<string, QuestDef> = {
     giverNpcId: 'scout_maren_highwatch', turnInNpcId: 'scout_maren_highwatch',
     text: 'The Thornpeak clans never come this far east — yet here they are, camped in the eastern foothills with war paint on. Somebody is paying them, $N, and ogres do not take promises. Cut twelve of them down while I find out who holds the purse.',
     completionText: 'Twelve down, and still they are not pulling back. Whoever bought them paid in something heavier than gold.',
-    objectives: [{ type: 'kill', targetMobId: 'thornpeak_ogre', count: 12, label: 'Thornpeak Ogre slain' }],
+    objectives: [{ type: 'kill', targetMobId: 'thornpeak_ogre', count: 12, label: 'Thornpeak Yeti slain' }],
     xpReward: 2900, copperReward: 1400, itemRewards: {},
     minLevel: 15,
   },
@@ -272,9 +272,9 @@ export const ZONE3_QUESTS: Record<string, QuestDef> = {
   q_ogre_bounty: {
     id: 'q_ogre_bounty', name: "The Captain's Bounty",
     giverNpcId: 'captain_thessaly', turnInNpcId: 'captain_thessaly',
-    text: "Maren's totems tell me all I need to know: the clans are bought, and my wall is their first errand. I will not wait for them to muster. Fourteen more Thornpeak Ogres, $N — and I will pay bounty on every one.",
+    text: "Maren's totems tell me all I need to know: the clans are bought, and my wall is their first errand. I will not wait for them to muster. Fourteen more Thornpeak Yetis, $N — and I will pay bounty on every one.",
     completionText: 'Bounty paid in full. The foothills are quieter — now we deal with the ones doing the buying.',
-    objectives: [{ type: 'kill', targetMobId: 'thornpeak_ogre', count: 14, label: 'Thornpeak Ogre slain' }],
+    objectives: [{ type: 'kill', targetMobId: 'thornpeak_ogre', count: 14, label: 'Thornpeak Yeti slain' }],
     xpReward: 3000, copperReward: 1500, itemRewards: {},
     requiresQuest: 'q_ogre_totems',
   },
@@ -283,16 +283,16 @@ export const ZONE3_QUESTS: Record<string, QuestDef> = {
     giverNpcId: 'captain_thessaly', turnInNpcId: 'captain_thessaly',
     text: "Drogmar's war-camp squats in the eastern crags, and his crushers are the spine of it — each one worth three of my soldiers. Take companions; this is no errand for one blade. Break ten crushers and the warlord's muster breaks with them.",
     completionText: 'Ten crushers down. The war-camp is a body without a spine — time to take the head.',
-    objectives: [{ type: 'kill', targetMobId: 'ogre_crusher', count: 10, label: 'Thornpeak Crusher slain' }],
+    objectives: [{ type: 'kill', targetMobId: 'ogre_crusher', count: 10, label: 'Thornpeak Yeti Crusher slain' }],
     xpReward: 3600, copperReward: 2000, itemRewards: {},
     minLevel: 16, suggestedPlayers: 3,
   },
   q_drogmar: {
-    id: 'q_drogmar', name: 'Warlord Drogmar',
+    id: 'q_drogmar', name: 'Drogmar the Snowbrute',
     giverNpcId: 'captain_thessaly', turnInNpcId: 'captain_thessaly',
-    text: "Warlord Drogmar took the Wyrmcult's coin and swore the clans to the mountain's waking. He is the hammer they mean to swing at my wall — and when he slams the ground, $N, do not be standing near him. Take your companions into the war-camp and end him, for Highwatch.",
+    text: "Drogmar the Snowbrute took the Wyrmcult's coin and swore the clans to the mountain's waking. He is the hammer they mean to swing at my wall — and when he slams the ground, $N, do not be standing near him. Take your companions into the war-camp and end him, for Highwatch.",
     completionText: 'Drogmar, dead in his own camp. The clans will scatter to the high passes — you have bought my wall a winter, $N.',
-    objectives: [{ type: 'kill', targetMobId: 'warlord_drogmar', count: 1, label: 'Warlord Drogmar slain' }],
+    objectives: [{ type: 'kill', targetMobId: 'warlord_drogmar', count: 1, label: 'Drogmar the Snowbrute slain' }],
     xpReward: 4000, copperReward: 2500,
     itemRewards: { warrior: 'drogmars_skullcleaver', mage: 'ogre_bonecharm_staff', rogue: 'gutripper_shiv' },
     requiresQuest: 'q_crushers', suggestedPlayers: 3,
@@ -302,7 +302,7 @@ export const ZONE3_QUESTS: Record<string, QuestDef> = {
     giverNpcId: 'loremaster_caddis', turnInNpcId: 'loremaster_caddis',
     text: 'Stormcrag has stood silent a thousand years, and now the very stones of it get up and walk. Elementals do not simply wake, $N — something beneath this mountain is turning in its sleep. Put twelve of them down so I may study what remains.',
     completionText: 'The fragments hum like struck bells. The mountain is not angry, $N... it is being disturbed.',
-    objectives: [{ type: 'kill', targetMobId: 'stormcrag_elemental', count: 12, label: 'Stormcrag Elemental slain' }],
+    objectives: [{ type: 'kill', targetMobId: 'stormcrag_elemental', count: 12, label: 'Stormcrag Goleling slain' }],
     xpReward: 3600, copperReward: 1800, itemRewards: {},
     minLevel: 16,
   },
@@ -318,7 +318,7 @@ export const ZONE3_QUESTS: Record<string, QuestDef> = {
   q_kazzix: {
     id: 'q_kazzix', name: 'The Shardlord',
     giverNpcId: 'loremaster_caddis', turnInNpcId: 'loremaster_caddis',
-    text: 'Among the elementals one burns brighter than the rest: Shardlord Kazzix, a storm given shoulders. Its heartshard would anchor every reading I have taken — if you can wrench it from the thing. It walks the far crags west of Stormcrag, beyond the second camp.',
+    text: 'Among the elementals one burns brighter than the rest: Kazzix the Shard Goleling, a storm given shoulders. Its heartshard would anchor every reading I have taken — if you can wrench it from the thing. It walks the far crags west of Stormcrag, beyond the second camp.',
     completionText: 'The heartshard! Still crackling — magnificent. Take these leggings; I sized them off a guess and a prayer.',
     objectives: [{ type: 'collect', itemId: 'kazzix_heartshard', count: 1, label: "Kazzix's Heartshard" }],
     xpReward: 3800, copperReward: 2000,
@@ -330,7 +330,7 @@ export const ZONE3_QUESTS: Record<string, QuestDef> = {
     giverNpcId: 'brother_aldric_highwatch', turnInNpcId: 'brother_aldric_highwatch',
     text: 'When the wind comes off the southern peaks, $N, it carries chanting. The Wyrmcult no longer hides — they have raised tents below the Sanctum and they sing to what sleeps beneath it. Silence twelve zealots. Every voice stilled buys the mountain another night of sleep.',
     completionText: 'The wind is quieter. But what troubles me is not the chanting, $N — it is that something may be chanting back.',
-    objectives: [{ type: 'kill', targetMobId: 'wyrmcult_zealot', count: 12, label: 'Wyrmcult Zealot slain' }],
+    objectives: [{ type: 'kill', targetMobId: 'wyrmcult_zealot', count: 12, label: 'Wyrmcult Shadowblade slain' }],
     xpReward: 4000, copperReward: 2000, itemRewards: {},
     minLevel: 17,
   },
@@ -340,7 +340,7 @@ export const ZONE3_QUESTS: Record<string, QuestDef> = {
     text: 'The zealots move with purpose now — watches set, supplies counted, like soldiers before a siege. Cultists who organize are cultists taking orders, $N. Kill eight more and bring me four sets of their written orders. I would know the hand that commands them.',
     completionText: "This script... I last saw its like in Morthen's grimoire, in Eastbrook. The same hand has guided every grave we have fought over, $N.",
     objectives: [
-      { type: 'kill', targetMobId: 'wyrmcult_zealot', count: 8, label: 'Wyrmcult Zealot slain' },
+      { type: 'kill', targetMobId: 'wyrmcult_zealot', count: 8, label: 'Wyrmcult Shadowblade slain' },
       { type: 'collect', itemId: 'wyrmcult_orders', count: 4, label: 'Wyrmcult Orders' },
     ],
     xpReward: 3800, copperReward: 1800, itemRewards: {},
@@ -352,7 +352,7 @@ export const ZONE3_QUESTS: Record<string, QuestDef> = {
     text: 'The orders speak of a "ring of phylacteries" — soul-vessels, $N, set about the Sanctum to feed it. The cult\'s necromancers carry them like holy relics. Kill eight necromancers and bring me three phylacteries unbroken. I must know what souls they hold.',
     completionText: 'Light forgive us. These hold the dead of the Vale and the fen — every corpse the Gravecallers ever raised, harvested. They were never building an army, $N. They were gathering a tithe.',
     objectives: [
-      { type: 'kill', targetMobId: 'wyrmcult_necromancer', count: 8, label: 'Wyrmcult Necromancer slain' },
+      { type: 'kill', targetMobId: 'wyrmcult_necromancer', count: 8, label: 'Wyrmcult Hexblob slain' },
       { type: 'collect', itemId: 'ritual_phylactery', count: 3, label: 'Ritual Phylactery' },
     ],
     xpReward: 4200, copperReward: 2200, itemRewards: {},
@@ -363,7 +363,7 @@ export const ZONE3_QUESTS: Record<string, QuestDef> = {
     giverNpcId: 'captain_thessaly', turnInNpcId: 'captain_thessaly',
     text: 'East of the Sanctum road lies an old battlefield — the vanguard of the last army that tried to take this mountain, two hundred years buried. The cult has called them up, bones in rusted plate. Put twelve revenants back in the ground, $N.',
     completionText: 'They were soldiers once, like mine. Whatever called them up has no respect for the dead — or a use for them I do not care to learn.',
-    objectives: [{ type: 'kill', targetMobId: 'boneclad_revenant', count: 12, label: 'Boneclad Revenant slain' }],
+    objectives: [{ type: 'kill', targetMobId: 'boneclad_revenant', count: 12, label: 'Boneclad Demon slain' }],
     xpReward: 4300, copperReward: 2200, itemRewards: {},
     minLevel: 18,
   },
@@ -372,7 +372,7 @@ export const ZONE3_QUESTS: Record<string, QuestDef> = {
     giverNpcId: 'captain_thessaly', turnInNpcId: 'captain_thessaly',
     text: 'The revenants are forming ranks, $N — true ranks, shield-lines and columns, drilling with no drummer. They are being mustered for the Sanctum gate. Break fourteen more before that march begins, and Highwatch will owe you its best steel.',
     completionText: 'The fields lie still again. Take this — it was made for the defenders of the wall, and no one has earned it more.',
-    objectives: [{ type: 'kill', targetMobId: 'boneclad_revenant', count: 14, label: 'Boneclad Revenant slain' }],
+    objectives: [{ type: 'kill', targetMobId: 'boneclad_revenant', count: 14, label: 'Boneclad Demon slain' }],
     xpReward: 4500, copperReward: 2400,
     itemRewards: { warrior: 'boneplate_vest', mage: 'revenant_silk_robe', rogue: 'nightwalk_jerkin' },
     requiresQuest: 'q_revenants',
@@ -401,8 +401,8 @@ export const ZONE3_QUESTS: Record<string, QuestDef> = {
     text: 'Last night the whole cult camp knelt at once, $N — every zealot, every necromancer, all facing the Sanctum. Korzul speaks to them in their sleep now; Vael heard the same voice in the fen, and Morthen before him. Cut the congregation down — ten zealots, six necromancers — before that voice has hands enough to pull the gate open itself.',
     completionText: 'The kneeling has stopped. We have not silenced the voice, $N — only thinned its choir. It must be enough.',
     objectives: [
-      { type: 'kill', targetMobId: 'wyrmcult_zealot', count: 10, label: 'Wyrmcult Zealot slain' },
-      { type: 'kill', targetMobId: 'wyrmcult_necromancer', count: 6, label: 'Wyrmcult Necromancer slain' },
+      { type: 'kill', targetMobId: 'wyrmcult_zealot', count: 10, label: 'Wyrmcult Shadowblade slain' },
+      { type: 'kill', targetMobId: 'wyrmcult_necromancer', count: 6, label: 'Wyrmcult Hexblob slain' },
     ],
     xpReward: 4400, copperReward: 2400,
     itemRewards: { warrior: 'zealotsbane_blade', mage: 'emberwood_staff', rogue: 'cultist_flayer' },
@@ -422,7 +422,7 @@ export const ZONE3_QUESTS: Record<string, QuestDef> = {
     giverNpcId: 'scout_maren_highwatch', turnInNpcId: 'scout_maren_highwatch',
     text: "My last sweep of the Sanctum's mouth found chains, $N — chains thick as a ship's mast, and something ogre-shaped straining inside them. The cult bound a champion at the threshold: Korgath, fed on rage for longer than either of us has been alive. Take four companions and put him down — and when the chains come off, do not let him corner you.",
     completionText: 'Korgath, broken at last. Even his chains deserved a kinder end than that. The wraps are yours — wear them past the threshold he kept.',
-    objectives: [{ type: 'kill', targetMobId: 'korgath_the_bound', count: 1, label: 'Korgath the Bound slain' }],
+    objectives: [{ type: 'kill', targetMobId: 'korgath_the_bound', count: 1, label: 'Korgath the Bound Yeti slain' }],
     xpReward: 4200, copperReward: 2500,
     itemRewards: { warrior: 'korgaths_chainwraps', mage: 'korgaths_chainwraps', rogue: 'korgaths_chainwraps' },
     requiresQuest: 'q_sanctum_gate', minLevel: 18, suggestedPlayers: 5,
@@ -430,9 +430,9 @@ export const ZONE3_QUESTS: Record<string, QuestDef> = {
   q_velkhar: {
     id: 'q_velkhar', name: 'The Grand Necromancer',
     giverNpcId: 'brother_aldric_highwatch', turnInNpcId: 'brother_aldric_highwatch',
-    text: 'Every thread we have followed — Morthen, Vael, the phylacteries — was spun by one hand: Grand Necromancer Velkhar, first of the Gravecallers, keeper of the waking rite. He stands in the ritual vault below, pouring two lands\' worth of stolen souls into the Wyrm. End him, $N, and the tithe ends with him.',
+    text: 'Every thread we have followed — Morthen, Vael, the phylacteries — was spun by one hand: Grand Hexblob Velkhar, first of the Gravecallers, keeper of the waking rite. He stands in the ritual vault below, pouring two lands\' worth of stolen souls into the Wyrm. End him, $N, and the tithe ends with him.',
     completionText: 'Velkhar is dead, and the rite is headless. But you felt it down there, did you not? The souls are already spent — the Wyrm is no longer asleep.',
-    objectives: [{ type: 'kill', targetMobId: 'grand_necromancer_velkhar', count: 1, label: 'Grand Necromancer Velkhar slain' }],
+    objectives: [{ type: 'kill', targetMobId: 'grand_necromancer_velkhar', count: 1, label: 'Grand Hexblob Velkhar slain' }],
     xpReward: 4500, copperReward: 3000,
     itemRewards: { warrior: 'boneguard_breastplate', mage: 'staff_of_velkhar', rogue: 'shadowmeld_tunic' },
     requiresQuest: 'q_sanctum_gate', minLevel: 18, suggestedPlayers: 5,
