@@ -28,7 +28,12 @@ type BaseState = 'idle' | 'walk' | 'walkBack' | 'run' | 'cast' | 'chop' | 'swim'
 
 const FADE = 0.22;
 const ONESHOT_FADE = 0.1;
-const RUN_SPEED_THRESHOLD = 4.5; // u/s — sim walk/wander sits well below
+// Keep the run gate comfortably above slowed locomotion. Backpedal is
+// RUN_SPEED*0.65 ~= 4.55 and rogue Stealth is RUN_SPEED*0.7 ~= 4.9; both sit
+// near the old 4.5 cutoff, so tiny interpolation/smoothing dips could flip
+// walk<->run every few frames and restart the clip. Only full-speed travel
+// should enter the run loop.
+const RUN_SPEED_THRESHOLD = 5.5; // u/s — sim walk/wander/slowed movement sit below
 const HIT_REACT_COOLDOWN = 0.9;
 const DEFAULT_WALK_REF = 2.2;
 const DEFAULT_RUN_REF = 7;
@@ -340,7 +345,7 @@ export class CharacterVisual {
     if (s.casting) return 'cast';
     if (s.sitting) return 'sit';
     if (s.moving) {
-      if (s.backwards && this.def.clips.walkBack) return 'walkBack';
+      if (s.backwards) return this.def.clips.walkBack ? 'walkBack' : 'walk';
       return s.speed >= RUN_SPEED_THRESHOLD ? 'run' : 'walk';
     }
     return 'idle';
