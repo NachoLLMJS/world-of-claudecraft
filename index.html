@@ -724,34 +724,223 @@
   #ls-fill { height: 100%; width: 0%; background: linear-gradient(180deg, var(--color-primary), var(--color-primary-dim)); transition: width .2s ease; }
   #ls-status { color: var(--color-text-light); font-family: var(--font-heading); font-size: 13px; text-shadow: 1px 1px 2px #000; }
 
-  /* ---------- online auth / character select ---------- */
-  .mode-row { display: flex; gap: 24px; flex-wrap: wrap; justify-content: center; }
-  .mode-card {
-    width: min(280px, 92vw);
-    padding: 26px 22px;
-    text-align: center;
-    cursor: pointer;
-    background: rgba(21, 21, 31, 0.94);
-    border: 2px solid var(--color-border-default);
-    border-radius: var(--radius-md);
-    box-shadow: 0 4px 15px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05);
-    transition: box-shadow var(--transition-speed) var(--transition-ease),
-                border-color var(--transition-speed) var(--transition-ease);
+  /* ---------- cinematic mode select ---------- */
+  #mode-select {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 140;
+    overflow: hidden;
+    background: #020304;
   }
-  .mode-card:hover,
-  .mode-card:focus-visible {
-    border-color: var(--color-border-focus);
-    box-shadow: 0 0 22px var(--color-primary-glow), 0 4px 15px #000c;
-    outline: none;
+  #mode-select[hidden] { display: none !important; }
+  #mode-select .mode-row {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+  }
+  .mode-card {
+    position: relative;
+    min-width: 0;
+    width: 100%;
+    height: 100vh;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    overflow: hidden;
+    cursor: pointer;
+    text-align: center;
+    background: #050505;
+    box-shadow: none;
+    isolation: isolate;
+    transition: filter .35s ease, transform .45s ease;
+  }
+  .mode-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -3;
+    background-image: var(--mode-bg), var(--mode-bg-dev);
+    background-position: center, center;
+    background-size: cover, cover;
+    background-repeat: no-repeat, no-repeat;
+    transform: scale(1.015);
+    transition: transform .8s ease, filter .45s ease;
+  }
+  .mode-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    background:
+      radial-gradient(circle at 50% 34%, transparent 0 22%, rgba(0,0,0,.22) 48%, rgba(0,0,0,.8) 100%),
+      linear-gradient(180deg, rgba(0,0,0,.10) 0%, rgba(0,0,0,.15) 44%, rgba(0,0,0,.82) 100%);
+    transition: background .35s ease;
+  }
+  .mode-card.mode-online { --mode-bg: url('/images/mode-select/online-mode.png'); --mode-bg-dev: url('/public/images/mode-select/online-mode.png'); --mode-accent: #d75b42; --mode-accent-soft: rgba(215,91,66,.38); }
+  .mode-card.mode-offline { --mode-bg: url('/images/mode-select/offline-mode.png'); --mode-bg-dev: url('/public/images/mode-select/offline-mode.png'); --mode-accent: #a5a85e; --mode-accent-soft: rgba(165,168,94,.34); }
+  .mode-card:hover::before,
+  .mode-card:focus-visible::before { transform: scale(1.055); filter: brightness(1.08) saturate(1.08); }
+  .mode-card:hover::after,
+  .mode-card:focus-visible::after {
+    background:
+      radial-gradient(circle at 50% 35%, transparent 0 30%, rgba(0,0,0,.14) 52%, rgba(0,0,0,.72) 100%),
+      linear-gradient(180deg, rgba(0,0,0,.08) 0%, rgba(0,0,0,.10) 42%, rgba(0,0,0,.76) 100%);
+  }
+  .mode-card:focus-visible { outline: 3px solid var(--mode-accent) !important; outline-offset: -6px !important; }
+  .mode-content {
+    position: absolute;
+    left: 50%;
+    bottom: clamp(48px, 8vh, 88px);
+    width: min(82%, 620px);
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #eee8dc;
+    text-shadow: 0 4px 14px #000, 0 0 24px rgba(0,0,0,.9);
   }
   .mode-card h2 {
+    margin: 0;
     font-family: var(--font-heading);
-    color: var(--color-primary);
-    font-size: 22px;
-    margin-bottom: 10px;
-    text-shadow: 0 0 8px rgba(255,209,0,0.2), 1px 1px 2px #000;
+    font-size: clamp(38px, 5vw, 78px);
+    line-height: .92;
+    letter-spacing: .075em;
+    color: #f0ebe3;
+    text-transform: uppercase;
+    text-shadow: 0 4px 0 rgba(37,22,12,.9), 0 0 18px #000, 0 0 34px var(--mode-accent-soft);
   }
-  .mode-card p { font-size: 12px; color: #a0aabf; line-height: 1.55; }
+  .mode-divider {
+    width: min(360px, 64%);
+    height: 28px;
+    margin: 8px 0 10px;
+    position: relative;
+  }
+  .mode-divider::before,
+  .mode-divider::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: calc(50% - 18px);
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--mode-accent));
+    box-shadow: 0 0 12px var(--mode-accent-soft);
+  }
+  .mode-divider::before { left: 0; }
+  .mode-divider::after { right: 0; transform: scaleX(-1); }
+  .mode-divider span {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 13px;
+    height: 13px;
+    border: 2px solid var(--mode-accent);
+    transform: translate(-50%, -50%) rotate(45deg);
+    background: rgba(0,0,0,.45);
+    box-shadow: 0 0 14px var(--mode-accent-soft);
+  }
+  .mode-emblem {
+    width: clamp(82px, 9vw, 122px);
+    height: clamp(82px, 9vw, 122px);
+    margin-top: 4px;
+    border: 3px double var(--mode-accent);
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    color: var(--mode-accent);
+    background: radial-gradient(circle, rgba(0,0,0,.2), rgba(0,0,0,.72));
+    box-shadow: inset 0 0 18px rgba(0,0,0,.85), 0 0 25px var(--mode-accent-soft);
+  }
+  .mode-emblem svg { width: 62%; height: 62%; stroke: currentColor; fill: none; stroke-width: 2.8; }
+  .mode-card p {
+    margin: 16px 0 0;
+    font-family: var(--font-heading);
+    font-size: clamp(14px, 1.35vw, 20px);
+    letter-spacing: .22em;
+    line-height: 1.35;
+    text-transform: uppercase;
+    color: var(--mode-accent);
+  }
+  .mode-center-line {
+    position: absolute;
+    z-index: 3;
+    left: 50%;
+    top: 0;
+    width: 2px;
+    height: 100%;
+    transform: translateX(-50%);
+    pointer-events: none;
+    background: linear-gradient(180deg, transparent, #d8bd76 19%, #fff2b8 50%, #d8bd76 81%, transparent);
+    box-shadow: 0 0 12px rgba(255,221,133,.52);
+  }
+  .mode-center-crest {
+    position: absolute;
+    z-index: 4;
+    left: 50%;
+    top: 50%;
+    width: 54px;
+    height: 54px;
+    transform: translate(-50%, -50%) rotate(45deg);
+    border: 2px solid #d8bd76;
+    background: rgba(10,8,5,.82);
+    box-shadow: 0 0 18px rgba(255,221,133,.45), inset 0 0 16px #000;
+    pointer-events: none;
+  }
+  .mode-center-crest::before {
+    content: 'V';
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    transform: rotate(-45deg);
+    font-family: var(--font-heading);
+    color: #e6ce8f;
+    font-size: 25px;
+    text-shadow: 0 0 10px #000;
+  }
+  .mode-footer {
+    position: absolute;
+    z-index: 5;
+    left: 50%;
+    bottom: 22px;
+    transform: translateX(-50%);
+    width: min(720px, 72vw);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 22px;
+    color: #c7ac72;
+    font-family: var(--font-heading);
+    font-size: clamp(12px, 1.35vw, 18px);
+    letter-spacing: .32em;
+    text-transform: uppercase;
+    text-shadow: 0 2px 12px #000;
+    pointer-events: none;
+  }
+  .mode-footer::before,
+  .mode-footer::after {
+    content: '';
+    height: 1px;
+    flex: 1;
+    background: linear-gradient(90deg, transparent, #c7ac72 70%, transparent);
+    opacity: .75;
+  }
+  .mode-footer::after { transform: scaleX(-1); }
+  #mode-select #performance-tip { display: none; }
+  @media (max-width: 760px) {
+    #mode-select .mode-row { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+    .mode-card { height: 50vh; }
+    .mode-content { bottom: 22px; }
+    .mode-card h2 { font-size: clamp(29px, 9vw, 44px); }
+    .mode-emblem { width: 60px; height: 60px; }
+    .mode-card p { font-size: 12px; letter-spacing: .14em; margin-top: 8px; }
+    .mode-center-line { left: 0; right: 0; top: 50%; width: 100%; height: 2px; transform: translateY(-50%); }
+    .mode-center-crest { width: 42px; height: 42px; }
+    .mode-footer { display: none; }
+  }
   .auth-panel { width: 360px; padding: 16px; }
   .auth-panel input {
     display: block;
@@ -2170,16 +2359,37 @@
     <div id="title-logo" role="img" aria-label="VAELORIA">VAELORIA</div>
 
     <div id="mode-select">
-      <div class="mode-row">
-        <div class="mode-card panel" id="btn-online" role="button" tabindex="0" aria-label="Online Mode: server characters, shared realm, blockchain and player market">
-          <h2>Online Mode</h2>
-          <p>Server characters. Shared realm, wallet identity, blockchain systems, player trading, guilds, chat, and marketplace.</p>
+      <div class="mode-row" aria-label="Choose your game mode">
+        <div class="mode-card mode-online" id="btn-online" role="button" tabindex="0" aria-label="Online Mode: server characters, shared realm, blockchain and player market">
+          <div class="mode-content">
+            <h2>Online Mode</h2>
+            <div class="mode-divider" aria-hidden="true"><span></span></div>
+            <div class="mode-emblem" aria-hidden="true">
+              <svg viewBox="0 0 64 64" role="img">
+                <circle cx="32" cy="32" r="24"></circle>
+                <path d="M8 32h48M32 8c8 7 12 15 12 24s-4 17-12 24M32 8c-8 7-12 15-12 24s4 17 12 24M14 22h36M14 42h36"></path>
+              </svg>
+            </div>
+            <p>Play Online</p>
+          </div>
         </div>
-        <div class="mode-card panel" id="btn-offline" role="button" tabindex="0" aria-label="Offline Solo Mode: local characters only, no blockchain, no online market">
-          <h2>Offline Solo Mode</h2>
-          <p>Local solo characters on this device only. No wallet, no blockchain, no player market, no guilds, no online trade.</p>
+        <div class="mode-card mode-offline" id="btn-offline" role="button" tabindex="0" aria-label="Offline Mode: local characters only, no blockchain, no online market">
+          <div class="mode-content">
+            <h2>Offline Mode</h2>
+            <div class="mode-divider" aria-hidden="true"><span></span></div>
+            <div class="mode-emblem" aria-hidden="true">
+              <svg viewBox="0 0 64 64" role="img">
+                <path d="M8 52h48L38 18 30 34l-6-10L8 52Z"></path>
+                <path d="M30 34l5 8 3-24M24 24l-4 18"></path>
+              </svg>
+            </div>
+            <p>Play Offline</p>
+          </div>
         </div>
       </div>
+      <div class="mode-center-line" aria-hidden="true"></div>
+      <div class="mode-center-crest" aria-hidden="true"></div>
+      <div class="mode-footer">Choose Your Game Mode</div>
       <div id="performance-tip"><b>TIP:</b> For the smoothest experience, turn off ad blocker extensions on this site. Community reports found some blockers can cause lag.</div>
     </div>
 
